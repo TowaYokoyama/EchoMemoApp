@@ -1,9 +1,24 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import fs from 'fs';
+import FormData from 'form-data';
+import axios from 'axios';
 
 // OpenAI APIキーを環境変数から取得（遅延評価で取得）
 const getOpenAIKey = () => process.env.OPENAI_API_KEY;
 const OPENAI_API_URL = 'https://api.openai.com/v1';
+
+// Multer設定: メモリにファイルを保存
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB (Whisper API limit)
+  },
+});
+
+// フロントエンドは 'file' フィールド名で送信
+export const audioUploadMiddleware = upload.single('file');
 
 // OpenAI APIが設定されているかチェック（関数として実装）
 const isOpenAIConfigured = () => {
@@ -48,41 +63,66 @@ const GenerateSuggestionsSchema = z.object({
 export const transcribeAudio = async (req: Request, res: Response): Promise<void> => {
   try {
     logInitialization();
-    console.log('Transcribe audio endpoint called');
+    console.log('🎤 Transcribe audio endpoint called');
+    
+    // ファイルがアップロードされているか確認
+    if (!req.file) {
+      console.log('❌ No audio file provided');
+      res.status(400).json({ error: 'Audio file is required' });
+      return;
+    }
+    
+    console.log(`📁 File received: ${req.file.originalname}, size: ${req.file.size} bytes`);
     
     if (!isOpenAIConfigured()) {
-      // モック実装
+      // モック実装: ファイルは受け取ったが、OpenAI APIが設定されていない
+      console.log('⚠️  Using mock transcription (no OpenAI API key)');
       res.json({
-        text: 'これはサンプルの文字起こしテキストです。実際のWhisper API統合にはOPENAI_API_KEYが必要です。',
+        text: 'これはサンプルの文字起こしテキストです。実際の文字起こしにはOPENAI_API_KEYが必要です。',
       });
       return;
     }
     
-    // TODO: 実際のファイルアップロード処理を実装
-    // Multerなどを使用して音声ファイルを受け取る必要があります
-    /*
+    // FormDataを作成してWhisper APIに送信
+    console.log('🚀 Calling Whisper API...');
     const formData = new FormData();
-    formData.append('file', audioFile);
+    
+    // BufferをStreamとして追加
+    formData.append('file', req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
     formData.append('model', 'whisper-1');
+    formData.append('language', 'ja'); // 日本語を指定
     
-    const response = await fetch(`${OPENAI_API_URL}/audio/transcriptions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${getOpenAIKey()}`,
-      },
-      body: formData,
+    try {
+      // axiosを使ってWhisper APIを呼び出し
+      const response = await axios.post(
+        `${OPENAI_API_URL}/audio/transcriptions`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${getOpenAIKey()}`,
+            ...formData.getHeaders(),
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        }
+      );
+      
+      console.log('✅ Transcription successful:', response.data.text.substring(0, 50) + '...');
+      res.json({ text: response.data.text });
+    } catch (apiError: any) {
+      const errorData = apiError.response?.data || apiError.message;
+      console.error('❌ Whisper API error:', errorData);
+      throw new Error(`Whisper API error: ${errorData.error?.message || errorData}`);
+    }
+  } catch (error: any) {
+    console.error('❌ Transcription error:', error);
+    res.status(500).json({ 
+      error: 'Transcription failed',
+      details: error.message 
     });
-    
-    const data = await response.json();
-    res.json({ text: data.text });
-    */
-    
-    res.json({
-      text: 'Whisper API統合は未実装です。ファイルアップロード機能の追加が必要です。',
-    });
-  } catch (error) {
-    console.error('Transcription error:', error);
-    res.status(500).json({ error: 'Transcription failed' });
   }
 };
 

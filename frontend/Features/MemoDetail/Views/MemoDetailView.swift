@@ -5,6 +5,8 @@ struct MemoDetailView: View {
     let memo: Memo
     @StateObject private var viewModel = MemoDetailViewModel()
     @State private var showingEdit = false
+    @State private var showingDeleteAlert = false
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         ScrollView {
@@ -71,15 +73,64 @@ struct MemoDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    showingEdit = true
+                Menu {
+                    Button {
+                        showingEdit = true
+                    } label: {
+                        Label("編集", systemImage: "pencil")
+                    }
+                    
+                    Button(role: .destructive) {
+                        showingDeleteAlert = true
+                    } label: {
+                        Label("削除", systemImage: "trash")
+                    }
                 } label: {
-                    Text("編集")
+                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
         .sheet(isPresented: $showingEdit) {
             EditMemoView(memo: memo)
+        }
+        .alert("メモを削除", isPresented: $showingDeleteAlert) {
+            Button("キャンセル", role: .cancel) {}
+            Button("削除", role: .destructive) {
+                Task {
+                    do {
+                        try await viewModel.deleteMemo(memo)
+                        dismiss()
+                    } catch {
+                        // エラーは別のアラートで表示
+                    }
+                }
+            }
+        } message: {
+            Text("このメモを削除してもよろしいですか？この操作は取り消せません。")
+        }
+        .alert(error: $viewModel.error)
+        .overlay {
+            if viewModel.isDeleting {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(1.5)
+                        
+                        Text("削除中...")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
+                    .padding(30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(.systemGray6))
+                    )
+                }
+            }
         }
         .task {
             await viewModel.loadLinkedMemos(for: memo)

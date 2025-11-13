@@ -20,9 +20,12 @@ export async function createMemo(
     const db = getDatabase();
     const collection = db.collection<MemoDocument>('memos');
 
-    // Create memo document (一時的にuser_idなし)
+    // 認証されたユーザーIDを取得
+    const userId = new ObjectId(req.user!.userId);
+
+    // Create memo document
     const memoDocument: MemoDocument = {
-      user_id: new ObjectId('000000000000000000000000'), // テスト用ダミーID
+      user_id: userId,
       audio_url: validatedData.audio_url,
       transcription: validatedData.transcription,
       summary: validatedData.summary,
@@ -77,19 +80,25 @@ export async function getRecentMemos(
     const db = getDatabase();
     const collection = db.collection<MemoDocument>('memos');
 
-    // 一時的にuser_idフィルタなし
-    // const userId = new ObjectId(req.user!.userId);
+    // 認証されたユーザーIDでフィルタ
+    const userId = new ObjectId(req.user!.userId);
 
-    // Fetch all memos, sorted by created_at descending with pagination
+    // Fetch user's memos, sorted by created_at descending with pagination
     const memos = await collection
-      .find({ deleted_at: { $exists: false } })
+      .find({ 
+        user_id: userId,
+        deleted_at: { $exists: false } 
+      })
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(limit)
       .toArray();
 
     // Get total count for pagination info
-    const total = await collection.countDocuments({ deleted_at: { $exists: false } });
+    const total = await collection.countDocuments({ 
+      user_id: userId,
+      deleted_at: { $exists: false } 
+    });
 
     // Convert to response format
     const response = memos.map(documentToResponse);
@@ -157,12 +166,13 @@ export async function searchMemosByEmbedding(
     const db = getDatabase();
     const collection = db.collection<MemoDocument>('memos');
 
-    // 一時的にuser_idフィルタなし（認証実装後に有効化）
-    // const userId = new ObjectId(req.user!.userId);
+    // 認証されたユーザーIDでフィルタ
+    const userId = new ObjectId(req.user!.userId);
 
-    // Fetch all memos with embeddings
+    // Fetch user's memos with embeddings
     const memos = await collection
       .find({ 
+        user_id: userId,
         embedding: { $exists: true },
         deleted_at: { $exists: false }
       } as any)
@@ -258,12 +268,13 @@ export async function getRelatedMemos(
     const db = getDatabase();
     const collection = db.collection<MemoDocument>('memos');
 
-    // 一時的にuser_idフィルタなし（認証実装後に有効化）
-    // const userId = new ObjectId(req.user!.userId);
+    // 認証されたユーザーIDでフィルタ
+    const userId = new ObjectId(req.user!.userId);
 
-    // Find memo by ID
+    // Find memo by ID (user's memo only)
     const memo = await collection.findOne({
       _id: new ObjectId(id),
+      user_id: userId,
       deleted_at: { $exists: false },
     });
 
@@ -279,6 +290,7 @@ export async function getRelatedMemos(
     const relatedMemos = await collection
       .find({
         _id: { $in: memo.related_memo_ids.map((id: string) => new ObjectId(id)) },
+        user_id: userId,
         deleted_at: { $exists: false },
       })
       .toArray();

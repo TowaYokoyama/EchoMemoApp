@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { transcribeAudio, generateTitle, extractTags, generateSuggestions } from '../controllers/gptController';
+import { transcribeAudio, generateTitle, extractTags, generateSuggestions, audioUploadMiddleware } from '../controllers/gptController';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -7,8 +7,8 @@ const router = Router();
 // すべてのエンドポイントに認証を適用
 router.use(authenticate);
 
-// POST /api/transcribe - 音声文字起こし
-router.post('/transcribe', transcribeAudio);
+// POST /api/transcribe - 音声文字起こし（multerミドルウェアを追加）
+router.post('/transcribe', audioUploadMiddleware, transcribeAudio);
 
 // POST /api/gpt/generate-title - タイトル生成
 router.post('/gpt/generate-title', generateTitle);

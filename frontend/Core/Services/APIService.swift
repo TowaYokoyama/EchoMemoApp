@@ -152,6 +152,7 @@ class APIService {
         fileData: Data,
         fileName: String,
         mimeType: String,
+        fieldName: String = "file",
         parameters: [String: String] = [:]
     ) async throws -> Data {
         guard let url = URL(string: "\(baseURL)\(endpoint)") else {
@@ -168,6 +169,8 @@ class APIService {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         
+        print("📤 [API] Uploading file: \(fileName), size: \(fileData.count) bytes")
+        
         var body = Data()
         
         // パラメータの追加
@@ -179,7 +182,7 @@ class APIService {
         
         // ファイルの追加
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
         body.append(fileData)
         body.append("\r\n".data(using: .utf8)!)
@@ -187,16 +190,24 @@ class APIService {
         
         request.httpBody = body
         
+        print("📡 [API] Sending upload request to: \(url.absoluteString)")
+        
         let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ [API] Invalid response type")
             throw APIError.invalidResponse
         }
         
+        print("📥 [API] Upload response: \(httpResponse.statusCode)")
+        
         guard 200...299 ~= httpResponse.statusCode else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("❌ [API] Upload failed: \(errorMessage)")
             throw APIError.serverError("Upload failed with status \(httpResponse.statusCode)")
         }
         
+        print("✅ [API] Upload successful")
         return data
     }
 }

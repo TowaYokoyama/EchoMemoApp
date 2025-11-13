@@ -93,6 +93,14 @@ struct HomeView: View {
             .sheet(isPresented: $showingRecording) {
                 RecordingView()
             }
+            .onChange(of: showingRecording) { isShowing in
+                // 録音画面が閉じられたら、メモリストを更新
+                if !isShowing {
+                    Task {
+                        await viewModel.refreshMemos()
+                    }
+                }
+            }
             .sheet(isPresented: $showingProfile) {
                 ProfileView(authViewModel: authViewModel)
             }

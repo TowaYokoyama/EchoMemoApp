@@ -135,10 +135,13 @@ class AudioService: NSObject, ObservableObject {
     // MARK: - Transcription
     
     func transcribeAudio(url: URL) async throws -> String {
+        print("🎤 [AUDIO] Starting transcription for: \(url.lastPathComponent)")
+        
         // 音声ファイルをデータに変換
         let audioData = try Data(contentsOf: url)
+        print("📦 [AUDIO] Audio file size: \(audioData.count) bytes")
         
-        // APIにアップロード
+        // APIにアップロード（デフォルトのfieldName="file"を使用）
         let responseData = try await APIService.shared.upload(
             endpoint: "/transcribe",
             fileData: audioData,
@@ -152,6 +155,7 @@ class AudioService: NSObject, ObservableObject {
         
         let decoder = JSONDecoder()
         let response = try decoder.decode(TranscriptionResponse.self, from: responseData)
+        print("✅ [AUDIO] Transcription completed: \(response.text.prefix(50))...")
         return response.text
     }
 }

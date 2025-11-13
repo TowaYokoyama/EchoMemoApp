@@ -5,6 +5,7 @@ import Foundation
 class MemoDetailViewModel: ObservableObject {
     @Published var linkedMemos: [Memo] = []
     @Published var isLoading = false
+    @Published var isDeleting = false
     @Published var error: Error?
     
     func loadLinkedMemos(for memo: Memo) async {
@@ -22,5 +23,22 @@ class MemoDetailViewModel: ObservableObject {
 //        }
 //        
 //        isLoading = false
+    }
+    
+    func deleteMemo(_ memo: Memo) async throws {
+        isDeleting = true
+        error = nil
+        
+        do {
+            print("🗑️ [MEMO] Deleting memo: \(memo.id)")
+            try await MemoService.shared.deleteMemo(id: memo.id)
+            print("✅ [MEMO] Memo deleted successfully")
+        } catch {
+            print("❌ [MEMO] Failed to delete memo: \(error)")
+            self.error = error
+            throw error
+        }
+        
+        isDeleting = false
     }
 }
