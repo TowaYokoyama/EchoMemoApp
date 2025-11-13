@@ -58,7 +58,9 @@ class HomeViewModel: ObservableObject {
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .removeDuplicates()
             .sink { [weak self] _ in
-                self?.filterMemos()
+                Task {
+                    await self?.performSearch()
+                }
             }
             .store(in: &cancellables)
     }
@@ -97,13 +99,42 @@ class HomeViewModel: ObservableObject {
         } else {
             selectedTags.insert(tag)
         }
-        // 即座にフィルタリングを実行
-        filterMemos()
+        // 検索テキストがあればAPI検索、なければローカルフィルタ
+        Task {
+            await performSearch()
+        }
     }
     
     func clearFilters() {
         selectedTags.removeAll()
         searchText = ""
+    }
+    
+    private func performSearch() async {
+        // 検索テキストがある場合はバックエンドAPIで検索
+        if !searchText.isEmpty && searchText.count >= 2 {
+            isLoading = true
+            do {
+                let searchResults = try await MemoService.shared.searchMemos(query: searchText)
+                
+                // タグフィルタを適用
+                var result = searchResults
+                if !selectedTags.isEmpty {
+                    result = result.filter { memo in
+                        !Set(memo.tags).isDisjoint(with: selectedTags)
+                    }
+                }
+                
+                filteredMemos = result.sorted { $0.createdAt > $1.createdAt }
+            } catch {
+                self.error = error
+                filterMemos() // エラー時はローカルフィルタにフォールバック
+            }
+            isLoading = false
+        } else {
+            // 検索テキストがない場合はローカルフィルタ
+            filterMemos()
+        }
     }
     
     private func filterMemos() {
@@ -116,7 +147,7 @@ class HomeViewModel: ObservableObject {
             }
         }
         
-        // 検索テキストでフィルタ
+        // 検索テキストでフィルタ（ローカル）
         if !searchText.isEmpty {
             result = result.filter { memo in
                 memo.title.localizedCaseInsensitiveContains(searchText) ||

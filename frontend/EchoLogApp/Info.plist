@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>ja_JP</string>
 	<key>CFBundleDisplayName</key>
-	<string>EchoLog</string>
+	<string>エコモコ丼</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,6 +26,14 @@
 	<string>メモに位置情報を付加するために使用します</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>音声メモを録音するために使用します</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>メモから抽出した時間に通知を送信します</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>開発サーバーとの通信に使用します</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

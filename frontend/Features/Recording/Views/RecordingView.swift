@@ -22,6 +22,72 @@ struct RecordingView: View {
                 
                 Spacer()
                 
+                // 通知設定トグル
+                VStack(spacing: 8) {
+                    HStack {
+                        Toggle(isOn: $viewModel.enableNotifications) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "bell.fill")
+                                    .foregroundColor(viewModel.enableNotifications ? .theme.accent : .theme.secondaryText)
+                                
+                                Text("時間を検出して通知")
+                                    .font(.subheadline)
+                                    .foregroundColor(.theme.text)
+                                
+                                Button {
+                                    // Info alert
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.caption)
+                                        .foregroundColor(.theme.secondaryText)
+                                }
+                            }
+                        }
+                        .toggleStyle(SwitchToggleStyle(tint: .theme.accent))
+                    }
+                    .padding()
+                    .background(Color.theme.secondaryBackground)
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
+                    if viewModel.enableNotifications {
+                        VStack(spacing: 4) {
+                            Text("メモから「明日3時」などの時間表現を検出し、\nその時刻に通知を送信します")
+                                .font(.caption2)
+                                .foregroundColor(.theme.secondaryText)
+                                .multilineTextAlignment(.center)
+                            
+                            // テストボタン
+                            Button {
+                                viewModel.sendTestNotification()
+                            } label: {
+                                Text("🔔 5秒後にテスト通知")
+                                    .font(.caption)
+                                    .foregroundColor(.theme.accent)
+                            }
+                            .padding(.top, 4)
+                        }
+                        .padding(.horizontal)
+                    }
+                    
+                    // 通知スケジュール成功メッセージ
+                    if viewModel.notificationScheduled {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("通知をスケジュールしました")
+                                .font(.caption)
+                                .foregroundColor(.theme.text)
+                        }
+                        .padding(8)
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding(.horizontal)
+                    }
+                }
+                
+                Spacer()
+                
                 // 録音ボタン
                 Button {
                     if viewModel.isRecording {

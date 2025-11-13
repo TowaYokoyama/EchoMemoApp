@@ -21,7 +21,7 @@ router.post('/', createMemo);
 // GET /api/memos - Get recent memos
 router.get('/', getRecentMemos);
 
-// GET /api/memos/search - Search memos by query string (for frontend compatibility)
+// GET /api/memos/search - Search memos by query string (text-based search)
 router.get('/search', async (req, res, next) => {
   try {
     const query = req.query.q as string;
@@ -29,9 +29,37 @@ router.get('/search', async (req, res, next) => {
       res.status(400).json({ error: 'Query parameter "q" is required' });
       return;
     }
-    // リクエストボディを設定してPOSTハンドラーを呼び出す
-    req.body = { query, limit: 20 };
-    await searchMemosByEmbedding(req, res, next);
+    
+    const db = (await import('../config/database')).getDatabase();
+    const collection = db.collection('memos');
+    const userId = new (await import('mongodb')).ObjectId((req as any).user.userId);
+    
+    // テキストベース検索（transcription と summary を対象）
+    const memos = await collection
+      .find({
+        user_id: userId,
+        deleted_at: { $exists: false },
+        $or: [
+          { transcription: { $regex: query, $options: 'i' } },
+          { summary: { $regex: query, $options: 'i' } },
+          { tags: { $regex: query, $options: 'i' } }
+        ]
+      })
+      .sort({ created_at: -1 })
+      .limit(50)
+      .toArray();
+    
+    const response = memos.map((memo: any) => ({
+      id: memo._id.toString(),
+      title: memo.summary || '',
+      content: memo.transcription || '',
+      tags: memo.tags || [],
+      audioUrl: memo.audio_url,
+      createdAt: memo.created_at,
+      updatedAt: memo.updated_at
+    }));
+    
+    res.status(200).json(response);
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).json({ error: 'Search failed' });

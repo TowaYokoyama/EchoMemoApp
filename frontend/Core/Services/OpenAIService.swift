@@ -69,4 +69,37 @@ class OpenAIService {
         
         return response.tags
     }
+    
+    //メモ内容から日時を抽出
+    func extractDateTime(content: String) async throws -> DateTimeInfo? {
+        struct DateTimeRequest: Encodable {
+            let content: String
+        }
+        
+        struct DateTimeResponse: Decodable {
+            let hasDateTime: Bool
+            let datetime: String?
+            let original: String?
+        }
+        
+        let request = DateTimeRequest(content: content)
+        let response: DateTimeResponse = try await APIService.shared.request(
+            endpoint: "/gpt/extract-datetime",
+            method: .post,
+            body: request
+        )
+        
+        guard response.hasDateTime,
+              let datetimeString = response.datetime,
+              let date = ISO8601DateFormatter().date(from: datetimeString) else {
+            return nil
+        }
+        
+        return DateTimeInfo(date: date, originalText: response.original ?? "")
+    }
+}
+
+struct DateTimeInfo {
+    let date: Date
+    let originalText: String
 }

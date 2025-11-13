@@ -97,9 +97,9 @@ class MemoService {
         )
     }
     //関連メモを取得
-    func getLinkedMemos(memoId: String) async throws -> [Memo] {
+    func getRelatedMemos(memoId: String) async throws -> [Memo] {
         return try await APIService.shared.request(
-            endpoint: "/memos/\(memoId)/linked",
+            endpoint: "/memos/\(memoId)/related",
             method: .get
         )
     }

@@ -150,7 +150,7 @@ class APIService {
                         guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
                               200...299 ~= retryHttpResponse.statusCode else {
                             print("❌ [API] Retry failed after token refresh")
-                            throw APIError.unauthorized
+                                throw APIError.unauthorized
                         }
                         
                         // リトライ用のデコーダーを作成

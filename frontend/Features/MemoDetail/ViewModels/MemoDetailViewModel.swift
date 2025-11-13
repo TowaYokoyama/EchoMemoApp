@@ -15,20 +15,18 @@ class MemoDetailViewModel: ObservableObject {
     }
     
     func loadLinkedMemos(for memo: Memo) async {
-        // TODO: 関連メモ機能は将来実装予定
-        // 現在のバックエンドはlinkedMemosフィールドをサポートしていません
-        return
+        isLoading = true
+        error = nil
         
-//        isLoading = true
-//        error = nil
-//        
-//        do {
-//            linkedMemos = try await MemoService.shared.getLinkedMemos(memoId: memo.id)
-//        } catch {
-//            self.error = error
-//        }
-//        
-//        isLoading = false
+        do {
+            linkedMemos = try await MemoService.shared.getRelatedMemos(memoId: memo.id)
+            print("✅ [MEMO] Loaded \(linkedMemos.count) related memos")
+        } catch {
+            print("❌ [MEMO] Failed to load related memos: \(error)")
+            self.error = error
+        }
+        
+        isLoading = false
     }
     
     func deleteMemo(_ memo: Memo) async throws {

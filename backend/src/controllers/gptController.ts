@@ -54,6 +54,10 @@ const ExtractTagsSchema = z.object({
   content: z.string().min(1),
 });
 
+const ExtractDateTimeSchema = z.object({
+  content: z.string().min(1),
+});
+
 const GenerateSuggestionsSchema = z.object({
   memoIds: z.array(z.string()),
 });
@@ -251,6 +255,120 @@ export const extractTags = async (req: Request, res: Response): Promise<void> =>
     res.status(500).json({ error: 'Tag extraction failed' });
   }
 };
+
+// 日時抽出
+export const extractDateTime = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validatedData = ExtractDateTimeSchema.parse(req.body);
+    const content = validatedData.content;
+    
+    if (!isOpenAIConfigured()) {
+      // フォールバック: 簡易的な正規表現ベース
+      const dateTimeInfo = extractDateTimeSimple(content);
+      res.json(dateTimeInfo);
+      return;
+    }
+    
+    // OpenAI GPTで高精度な日時抽出
+    const response = await fetch(`${OPENAI_API_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getOpenAIKey()}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: `あなたは日本語テキストから日時情報を抽出する専門家です。
+現在の日時: ${new Date().toISOString()}
+テキストから日時に関する表現を見つけて、ISO8601形式の日時に変換してください。
+「明日」「来週」「3日後」などの相対的な表現も正確に解釈してください。
+日時情報が見つからない場合はnullを返してください。`,
+          },
+          {
+            role: 'user',
+            content: `以下のテキストから日時情報を抽出してJSON形式で返してください:\n\n${content}\n\n形式: {"datetime": "ISO8601形式またはnull", "original": "元のテキスト表現またはnull", "hasDateTime": true/false}`,
+          },
+        ],
+        max_tokens: 100,
+        temperature: 0.3,
+      }),
+    });
+    
+    const data = await response.json() as any;
+    
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+    }
+    
+    const resultText = data.choices[0]?.message?.content?.trim() || '{}';
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { hasDateTime: false, datetime: null, original: null };
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error('Extract datetime error:', error);
+    if (error.name === 'ZodError') {
+      res.status(400).json({ error: 'Invalid input', details: error.errors });
+      return;
+    }
+    res.status(500).json({ error: 'DateTime extraction failed' });
+  }
+};
+
+// 簡易的な日時抽出（フォールバック用）
+function extractDateTimeSimple(text: string) {
+  const now = new Date();
+  
+  // 明日のパターン
+  if (text.match(/明日.*?(\d{1,2})時/)) {
+    const hour = parseInt(text.match(/明日.*?(\d{1,2})時/)![1]);
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(hour, 0, 0, 0);
+    return {
+      hasDateTime: true,
+      datetime: tomorrow.toISOString(),
+      original: text.match(/明日.*?(\d{1,2})時/)![0],
+    };
+  }
+  
+  // 今日のパターン
+  if (text.match(/今日.*?(\d{1,2})時/) || text.match(/(\d{1,2})時/)) {
+    const match = text.match(/(?:今日.*?)?(\d{1,2})時/);
+    if (match) {
+      const hour = parseInt(match[1]);
+      const today = new Date(now);
+      today.setHours(hour, 0, 0, 0);
+      return {
+        hasDateTime: true,
+        datetime: today.toISOString(),
+        original: match[0],
+      };
+    }
+  }
+  
+  // 日付のパターン (MM月DD日)
+  if (text.match(/(\d{1,2})月(\d{1,2})日/)) {
+    const match = text.match(/(\d{1,2})月(\d{1,2})日/)!;
+    const month = parseInt(match[1]) - 1;
+    const day = parseInt(match[2]);
+    const date = new Date(now.getFullYear(), month, day);
+    return {
+      hasDateTime: true,
+      datetime: date.toISOString(),
+      original: match[0],
+    };
+  }
+  
+  return {
+    hasDateTime: false,
+    datetime: null,
+    original: null,
+  };
+}
 
 // Echo提案生成
 export const generateSuggestions = async (req: Request, res: Response): Promise<void> => {

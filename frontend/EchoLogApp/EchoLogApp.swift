@@ -1,6 +1,7 @@
 
 
 import SwiftUI
+import UserNotifications
 
 @main
 struct EchoLogApp: App {
@@ -10,6 +11,7 @@ struct EchoLogApp: App {
     
     init() {
         setupAppearance()
+        requestNotificationPermission()
     }
     
     var body: some Scene {
@@ -31,6 +33,19 @@ struct EchoLogApp: App {
         
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().scrollEdgeAppearance = appearance
+    }
+    
+    private func requestNotificationPermission() {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                print("✅ Notification permission granted")
+            } else if let error = error {
+                print("❌ Notification permission error: \(error)")
+            } else {
+                print("⚠️ Notification permission denied")
+            }
+        }
     }
 }
 
@@ -55,11 +70,6 @@ struct MainTabView: View {
             HomeView()
                 .tabItem {
                     Label("ホーム", systemImage: "house.fill")
-                }
-            
-            SearchView()
-                .tabItem {
-                    Label("検索", systemImage: "magnifyingglass")
                 }
             
             EchoAssistantView()
