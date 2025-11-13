@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
-import fs from 'fs';
 import FormData from 'form-data';
 import axios from 'axios';
 
@@ -257,39 +256,92 @@ export const extractTags = async (req: Request, res: Response): Promise<void> =>
 export const generateSuggestions = async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = GenerateSuggestionsSchema.parse(req.body);
+    const memoIds = validatedData.memoIds;
     
-    // フォールバック: ダミーデータを返す
-    const suggestions = [
-      {
-        id: '1',
+    if (memoIds.length === 0) {
+      res.json([]);
+      return;
+    }
+    
+    // メモの内容を取得
+    const { getDatabase } = await import('../config/database');
+    const db = getDatabase();
+    const collection = db.collection('memos');
+    
+    const { ObjectId } = await import('mongodb');
+    const memos = await collection
+      .find({ 
+        _id: { $in: memoIds.map(id => new ObjectId(id)) }
+      })
+      .limit(50) // パフォーマンス: 最大50件まで
+      .toArray();
+    
+    if (memos.length < 2) {
+      // メモが少なすぎる場合は提案を生成しない
+      res.json([]);
+      return;
+    }
+    
+    const suggestions: any[] = [];
+    
+    // 1. タグベースの関連性を分析（高速）
+    const tagGroups = analyzeTagPatterns(memos);
+    for (const group of tagGroups) {
+      suggestions.push({
+        id: `tag-${group.tag}`,
         type: 'connection',
-        title: '関連するメモを発見',
-        description: '複数のメモに共通のテーマが見つかりました',
-        relatedMemoIds: validatedData.memoIds.slice(0, 2),
-        priority: 5,
+        title: `「${group.tag}」に関するメモ`,
+        description: `${group.count}件のメモが「${group.tag}」タグで関連しています`,
+        relatedMemoIds: group.memoIds,
+        priority: Math.min(group.count, 5),
         createdAt: new Date(),
         isActioned: false,
-      },
-      {
-        id: '2',
-        type: 'insight',
-        title: 'パターンの発見',
-        description: '最近のメモから興味深いパターンが見つかりました',
-        relatedMemoIds: validatedData.memoIds.slice(0, 3),
-        priority: 4,
-        createdAt: new Date(),
-        isActioned: false,
-      },
-    ];
+      });
+    }
     
-    // TODO: OpenAI APIを使用してメモの関連性を分析し、
-    // より高度な提案を生成する
-    // 1. メモの内容を取得
-    // 2. Embeddingを生成
-    // 3. 類似度を計算
-    // 4. GPTで洞察を生成
+    // 2. Embeddingベースの類似度分析（中速）
+    if (memos.some((m: any) => m.embedding)) {
+      const similarityGroups = await analyzeSimilarityPatterns(memos);
+      for (const group of similarityGroups) {
+        suggestions.push({
+          id: `similarity-${group.id}`,
+          type: 'connection',
+          title: '類似したテーマのメモ',
+          description: `${group.count}件のメモに類似したテーマが見つかりました`,
+          relatedMemoIds: group.memoIds,
+          priority: 4,
+          createdAt: new Date(),
+          isActioned: false,
+        });
+      }
+    }
     
-    res.json(suggestions);
+    // 3. OpenAI GPTで洞察を生成（低速、オプション）
+    if (isOpenAIConfigured() && memos.length >= 3 && memos.length <= 10) {
+      try {
+        const insights = await generateAIInsights(memos);
+        if (insights) {
+          suggestions.push({
+            id: `insight-ai`,
+            type: 'insight',
+            title: insights.title,
+            description: insights.description,
+            relatedMemoIds: memoIds.slice(0, 5),
+            priority: 5,
+            createdAt: new Date(),
+            isActioned: false,
+          });
+        }
+      } catch (error) {
+        console.error('AI insight generation failed:', error);
+        // エラーが出てもスキップして続行
+      }
+    }
+    
+    // 優先度順にソートして上位5件まで返す
+    suggestions.sort((a, b) => b.priority - a.priority);
+    res.json(suggestions.slice(0, 5));
+    
   } catch (error: any) {
     console.error('Generate suggestions error:', error);
     if (error.name === 'ZodError') {
@@ -299,3 +351,134 @@ export const generateSuggestions = async (req: Request, res: Response): Promise<
     res.status(500).json({ error: 'Suggestion generation failed' });
   }
 };
+
+// タグパターン分析（高速）
+function analyzeTagPatterns(memos: any[]) {
+  const tagCounts = new Map<string, string[]>();
+  
+  for (const memo of memos) {
+    if (memo.tags && Array.isArray(memo.tags)) {
+      for (const tag of memo.tags) {
+        if (!tagCounts.has(tag)) {
+          tagCounts.set(tag, []);
+        }
+        tagCounts.get(tag)!.push(memo._id.toString());
+      }
+    }
+  }
+  
+  // 2件以上のメモがあるタグのみ返す
+  const groups = [];
+  for (const [tag, memoIds] of tagCounts.entries()) {
+    if (memoIds.length >= 2) {
+      groups.push({ tag, count: memoIds.length, memoIds });
+    }
+  }
+  
+  // 多い順にソート
+  groups.sort((a, b) => b.count - a.count);
+  return groups.slice(0, 3); // 上位3グループまで
+}
+
+// 類似度パターン分析（中速）
+async function analyzeSimilarityPatterns(memos: any[]) {
+  const { cosineSimilarity } = await import('../utils/similarity');
+  const groups: any[] = [];
+  const processed = new Set<string>();
+  
+  for (let i = 0; i < memos.length; i++) {
+    const memo1 = memos[i];
+    if (!memo1.embedding || processed.has(memo1._id.toString())) continue;
+    
+    const similarMemos = [memo1._id.toString()];
+    
+    for (let j = i + 1; j < memos.length; j++) {
+      const memo2 = memos[j];
+      if (!memo2.embedding || processed.has(memo2._id.toString())) continue;
+      
+      const similarity = cosineSimilarity(memo1.embedding, memo2.embedding);
+      if (similarity > 0.75) { // 75%以上の類似度
+        similarMemos.push(memo2._id.toString());
+        processed.add(memo2._id.toString());
+      }
+    }
+    
+    if (similarMemos.length >= 2) {
+      groups.push({
+        id: memo1._id.toString(),
+        count: similarMemos.length,
+        memoIds: similarMemos,
+      });
+      processed.add(memo1._id.toString());
+    }
+    
+    if (groups.length >= 2) break; // 最大2グループまで
+  }
+  
+  return groups;
+}
+
+// AI洞察生成（低速）
+async function generateAIInsights(memos: any[]) {
+  if (!isOpenAIConfigured()) return null;
+  
+  // メモの要約を結合
+  const summaries = memos
+    .map(m => m.summary || m.transcription?.substring(0, 100))
+    .filter(Boolean)
+    .slice(0, 5);
+  
+  if (summaries.length < 3) return null;
+  
+  const prompt = `以下のメモから共通のテーマやパターンを見つけて、簡潔な洞察を提供してください。
+
+メモ:
+${summaries.map((s, i) => `${i + 1}. ${s}`).join('\n')}
+
+以下の形式でJSONで回答してください:
+{
+  "title": "発見したパターンのタイトル（15文字以内）",
+  "description": "洞察の説明（50文字以内）"
+}`;
+
+  try {
+    const response = await axios.post(
+      `${OPENAI_API_URL}/chat/completions`,
+      {
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'あなたはメモの分析専門家です。複数のメモから共通のパターンや洞察を見つけます。',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        max_tokens: 150,
+        temperature: 0.7,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getOpenAIKey()}`,
+        },
+      }
+    );
+    
+    const content = response.data.choices[0]?.message?.content?.trim();
+    if (!content) return null;
+    
+    // JSONをパース
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('AI insights error:', error);
+    return null;
+  }
+}

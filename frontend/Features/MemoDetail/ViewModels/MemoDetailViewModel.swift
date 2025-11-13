@@ -4,9 +4,15 @@ import Foundation
 @MainActor
 class MemoDetailViewModel: ObservableObject {
     @Published var linkedMemos: [Memo] = []
+    @Published var updatedMemo: Memo? = nil
     @Published var isLoading = false
     @Published var isDeleting = false
     @Published var error: Error?
+    
+    func updateMemo(_ memo: Memo) {
+        print("📝 [MEMO] Updating displayed memo: \(memo.id)")
+        updatedMemo = memo
+    }
     
     func loadLinkedMemos(for memo: Memo) async {
         // TODO: 関連メモ機能は将来実装予定

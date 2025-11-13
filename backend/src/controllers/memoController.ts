@@ -83,7 +83,6 @@ export async function getRecentMemos(
     // 認証されたユーザーIDでフィルタ
     const userId = new ObjectId(req.user!.userId);
 
-    // Fetch user's memos, sorted by created_at descending with pagination
     const memos = await collection
       .find({ 
         user_id: userId,
@@ -94,13 +93,13 @@ export async function getRecentMemos(
       .limit(limit)
       .toArray();
 
-    // Get total count for pagination info
+
     const total = await collection.countDocuments({ 
       user_id: userId,
       deleted_at: { $exists: false } 
     });
 
-    // Convert to response format
+
     const response = memos.map(documentToResponse);
 
     res.status(200).json({
@@ -135,7 +134,7 @@ export async function getMemoById(
 
     const userId = new ObjectId(req.user!.userId);
 
-    // Find memo by ID and user_id
+    
     const memo = await collection.findOne({ 
       _id: new ObjectId(id),
       user_id: userId,
@@ -158,7 +157,7 @@ export async function searchMemosByEmbedding(
   next: NextFunction
 ) {
   try {
-    // Validate request body
+
     const validatedData = SearchMemoSchema.parse(req.body);
     const queryEmbedding = validatedData.embedding;
     const limit = validatedData.limit || 5;
@@ -169,7 +168,6 @@ export async function searchMemosByEmbedding(
     // 認証されたユーザーIDでフィルタ
     const userId = new ObjectId(req.user!.userId);
 
-    // Fetch user's memos with embeddings
     const memos = await collection
       .find({ 
         user_id: userId,
@@ -182,7 +180,6 @@ export async function searchMemosByEmbedding(
       return res.status(200).json([]);
     }
 
-    // Calculate cosine similarity for each memo
     const memosWithSimilarity = memos.map((memo) => {
       const similarity = cosineSimilarity(queryEmbedding, memo.embedding!);
       return {
@@ -191,13 +188,11 @@ export async function searchMemosByEmbedding(
       };
     });
 
-    // Filter by similarity threshold and sort
     const filteredMemos = memosWithSimilarity
       .filter((item) => item.similarity > 0.7)
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
 
-    // Convert to response format with similarity score
     const response = filteredMemos.map((item) => ({
       ...documentToResponse(item.memo),
       similarity: item.similarity,
@@ -220,7 +215,7 @@ export async function deleteMemo(
   try {
     const { id } = req.params;
 
-    // Validate ObjectId format
+
     if (!ObjectId.isValid(id)) {
       throw new AppError(400, 'Invalid memo ID format');
     }
@@ -230,7 +225,7 @@ export async function deleteMemo(
 
     const userId = new ObjectId(req.user!.userId);
 
-    // Delete memo (only if it belongs to the user)
+    
     const result = await collection.deleteOne({ 
       _id: new ObjectId(id),
       user_id: userId
@@ -240,7 +235,7 @@ export async function deleteMemo(
       throw new AppError(404, 'Memo not found');
     }
 
-    // Cleanup links asynchronously
+  
     cleanupMemoLinks(id).catch((error) =>
       console.error('Link cleanup failed:', error)
     );
@@ -260,7 +255,7 @@ export async function getRelatedMemos(
   try {
     const { id } = req.params;
 
-    // Validate ObjectId format
+
     if (!ObjectId.isValid(id)) {
       throw new AppError(400, 'Invalid memo ID format');
     }
@@ -271,7 +266,7 @@ export async function getRelatedMemos(
     // 認証されたユーザーIDでフィルタ
     const userId = new ObjectId(req.user!.userId);
 
-    // Find memo by ID (user's memo only)
+    
     const memo = await collection.findOne({
       _id: new ObjectId(id),
       user_id: userId,
@@ -282,7 +277,6 @@ export async function getRelatedMemos(
       throw new AppError(404, 'Memo not found');
     }
 
-    // Get related memos
     if (!memo.related_memo_ids || memo.related_memo_ids.length === 0) {
       return res.status(200).json([]);
     }
@@ -310,8 +304,8 @@ export async function updateMemo(
 ) {
   try {
     const { id } = req.params;
+    console.log('📝 Update memo request:', { id, body: req.body });
 
-    // Validate ObjectId format
     if (!ObjectId.isValid(id)) {
       throw new AppError(400, 'Invalid memo ID format');
     }
@@ -323,20 +317,35 @@ export async function updateMemo(
 
     // 更新可能なフィールドのみ抽出
     const updateFields: Partial<MemoDocument> = {};
+    
+    // transcription または content を受け入れる（フロントエンドとの互換性）
     if (req.body.transcription !== undefined) {
       updateFields.transcription = req.body.transcription;
+    } else if (req.body.content !== undefined) {
+      updateFields.transcription = req.body.content;
     }
+    
+    // summary または title を受け入れる（フロントエンドとの互換性）
     if (req.body.summary !== undefined) {
       updateFields.summary = req.body.summary;
+    } else if (req.body.title !== undefined) {
+      updateFields.summary = req.body.title;
     }
+    
     if (req.body.tags !== undefined) {
       updateFields.tags = req.body.tags;
+    }
+
+    // 更新するフィールドがない場合はエラー
+    if (Object.keys(updateFields).length === 0) {
+      throw new AppError(400, 'No fields to update');
     }
 
     // updated_atを自動設定
     updateFields.updated_at = new Date();
 
-    // Update memo (only if it belongs to the user)
+    console.log('🔄 Updating memo with fields:', updateFields);
+
     const result = await collection.findOneAndUpdate(
       {
         _id: new ObjectId(id),
@@ -348,11 +357,14 @@ export async function updateMemo(
     );
 
     if (!result) {
+      console.log('❌ Memo not found for update');
       throw new AppError(404, 'Memo not found');
     }
 
+    console.log('✅ Memo updated successfully:', result._id.toString());
     res.status(200).json(documentToResponse(result));
   } catch (error: any) {
+    console.error('❌ Update memo error:', error);
     if (error.name === 'ZodError') {
       return next(new AppError(400, 'Invalid request data'));
     }

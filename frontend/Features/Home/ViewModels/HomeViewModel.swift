@@ -20,7 +20,33 @@ class HomeViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     var allTags: [String] {
-        Array(Set(memos.flatMap { $0.tags })).sorted()
+        // タグの使用頻度をカウント
+        let tagCounts = memos.flatMap { $0.tags }.reduce(into: [:]) { counts, tag in
+            counts[tag, default: 0] += 1
+        }
+        
+        let allUniqueTags = Array(Set(memos.flatMap { $0.tags }))
+        
+        // 選択中のタグを先頭に、その後は使用頻度順、同頻度ならアルファベット順
+        return allUniqueTags.sorted { tag1, tag2 in
+            let isSelected1 = selectedTags.contains(tag1)
+            let isSelected2 = selectedTags.contains(tag2)
+            
+            // 選択中のタグを優先
+            if isSelected1 != isSelected2 {
+                return isSelected1
+            }
+            
+            // 使用頻度で比較
+            let count1 = tagCounts[tag1] ?? 0
+            let count2 = tagCounts[tag2] ?? 0
+            if count1 != count2 {
+                return count1 > count2
+            }
+            
+            // 同頻度ならアルファベット順
+            return tag1 < tag2
+        }
     }
     
     init() {
@@ -31,12 +57,6 @@ class HomeViewModel: ObservableObject {
         $searchText
             .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.filterMemos()
-            }
-            .store(in: &cancellables)
-        
-        $selectedTags
             .sink { [weak self] _ in
                 self?.filterMemos()
             }
@@ -77,6 +97,8 @@ class HomeViewModel: ObservableObject {
         } else {
             selectedTags.insert(tag)
         }
+        // 即座にフィルタリングを実行
+        filterMemos()
     }
     
     func clearFilters() {

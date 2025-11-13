@@ -4,8 +4,14 @@ import SwiftUI
 
 struct EditMemoView: View {
     let memo: Memo
+    let onSaved: ((Memo) -> Void)?
     @StateObject private var viewModel = EditMemoViewModel()
     @Environment(\.dismiss) private var dismiss
+    
+    init(memo: Memo, onSaved: ((Memo) -> Void)? = nil) {
+        self.memo = memo
+        self.onSaved = onSaved
+    }
     
     var body: some View {
         NavigationView {
@@ -44,7 +50,8 @@ struct EditMemoView: View {
                     Button("保存") {
                         Task {
                             await viewModel.save(memo: memo)
-                            if viewModel.isSaved {
+                            if viewModel.isSaved, let updatedMemo = viewModel.savedMemo {
+                                onSaved?(updatedMemo)
                                 dismiss()
                             }
                         }
@@ -66,6 +73,7 @@ class EditMemoViewModel: ObservableObject {
     @Published var tagsString = ""
     @Published var isSaving = false
     @Published var isSaved = false
+    @Published var savedMemo: Memo?
     @Published var error: Error?
     
     var tags: [String] {
@@ -84,14 +92,17 @@ class EditMemoViewModel: ObservableObject {
         error = nil
         
         do {
-            _ = try await MemoService.shared.updateMemo(
+            let updatedMemo = try await MemoService.shared.updateMemo(
                 id: memo.id,
                 title: title,
                 content: content,
                 tags: tags
             )
+            savedMemo = updatedMemo
             isSaved = true
+            print("✅ [EDIT] Memo saved successfully: \(updatedMemo.id)")
         } catch {
+            print("❌ [EDIT] Failed to save memo: \(error)")
             self.error = error
         }
         

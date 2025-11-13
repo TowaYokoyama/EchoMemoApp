@@ -132,8 +132,67 @@ class APIService {
                     throw APIError.decodingError
                 }
             case 401:
-                print("❌ Unauthorized")
-                throw APIError.unauthorized
+                print("⚠️ [API] 401 Unauthorized - attempting token refresh...")
+                
+                // トークンリフレッシュを試行（リフレッシュエンドポイント以外の場合のみ）
+                if !endpoint.contains("/auth/refresh") && !endpoint.contains("/auth/login") && !endpoint.contains("/auth/register") {
+                    do {
+                        // トークンをリフレッシュ
+                        let newToken = try await AuthService.shared.refreshAccessToken()
+                        print("✅ [API] Token refreshed, retrying original request...")
+                        
+                        // 新しいトークンで再度リクエスト
+                        var retryRequest = request
+                        retryRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                        
+                        let (retryData, retryResponse) = try await session.data(for: retryRequest)
+                        
+                        guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                              200...299 ~= retryHttpResponse.statusCode else {
+                            print("❌ [API] Retry failed after token refresh")
+                            throw APIError.unauthorized
+                        }
+                        
+                        // リトライ用のデコーダーを作成
+                        let retryDecoder = JSONDecoder()
+                        retryDecoder.dateDecodingStrategy = .custom { decoder in
+                            let container = try decoder.singleValueContainer()
+                            let dateString = try container.decode(String.self)
+                            
+                            let iso8601Formatter = ISO8601DateFormatter()
+                            iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                            if let date = iso8601Formatter.date(from: dateString) {
+                                return date
+                            }
+                            
+                            iso8601Formatter.formatOptions = [.withInternetDateTime]
+                            if let date = iso8601Formatter.date(from: dateString) {
+                                return date
+                            }
+                            
+                            let dateFormatter = DateFormatter()
+                            dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+                            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+                            dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+                            if let date = dateFormatter.date(from: dateString) {
+                                return date
+                            }
+                            
+                            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date string: \(dateString)")
+                        }
+                        
+                        let decoded = try retryDecoder.decode(T.self, from: retryData)
+                        print("✅ [API] Retry successful after token refresh")
+                        
+                        return decoded
+                    } catch {
+                        print("❌ [API] Token refresh failed: \(error)")
+                        throw APIError.unauthorized
+                    }
+                } else {
+                    print("❌ [API] Unauthorized (no refresh attempt for this endpoint)")
+                    throw APIError.unauthorized
+                }
             default:
                 let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
                 print("❌ Server error: \(errorMessage)")

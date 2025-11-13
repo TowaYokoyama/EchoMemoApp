@@ -8,7 +8,9 @@ class KeychainManager {
     
     private let service = "com.echolog.app"
     private let tokenKey = "authToken"
+    private let refreshTokenKey = "refreshToken"
     private let userDefaultsTokenKey = "fallbackAuthToken"
+    private let userDefaultsRefreshTokenKey = "fallbackRefreshToken"
     private let userDefaultsUserKey = "currentUser"
     
     private init() {}
@@ -128,5 +130,87 @@ class KeychainManager {
         UserDefaults.standard.removeObject(forKey: userDefaultsUserKey)
         UserDefaults.standard.synchronize()
         print("✅ [AUTH] User deleted")
+    }
+    
+    // MARK: - Refresh Token Management
+    
+    func saveRefreshToken(_ token: String) {
+        print("🔄 [AUTH] Saving refresh token: \(token.prefix(20))...")
+        
+        // UserDefaultsにバックアップ保存
+        UserDefaults.standard.set(token, forKey: userDefaultsRefreshTokenKey)
+        UserDefaults.standard.synchronize()
+        print("✅ [AUTH] Refresh token saved to UserDefaults")
+        
+        // Keychainへの保存を試みる
+        guard let data = token.data(using: .utf8) else {
+            print("⚠️ [AUTH] Failed to convert refresh token to data")
+            return
+        }
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: refreshTokenKey,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
+        ]
+        
+        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        
+        if status == errSecSuccess {
+            print("✅ [AUTH] Refresh token also saved to Keychain")
+        } else {
+            print("⚠️ [AUTH] Keychain save failed (\(status)), using UserDefaults backup")
+        }
+    }
+    
+    func getRefreshToken() -> String? {
+        print("🔍 [AUTH] Retrieving refresh token...")
+        
+        // Keychainから取得を試みる
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: refreshTokenKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        if status == errSecSuccess,
+           let data = result as? Data,
+           let token = String(data: data, encoding: .utf8) {
+            print("✅ [AUTH] Refresh token retrieved from Keychain")
+            return token
+        }
+        
+        // UserDefaultsからフォールバック
+        if let token = UserDefaults.standard.string(forKey: userDefaultsRefreshTokenKey) {
+            print("✅ [AUTH] Refresh token retrieved from UserDefaults")
+            return token
+        }
+        
+        print("❌ [AUTH] No refresh token found")
+        return nil
+    }
+    
+    func deleteRefreshToken() {
+        print("🗑️ [AUTH] Deleting refresh token...")
+        
+        UserDefaults.standard.removeObject(forKey: userDefaultsRefreshTokenKey)
+        UserDefaults.standard.synchronize()
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: refreshTokenKey
+        ]
+        
+        SecItemDelete(query as CFDictionary)
+        print("✅ [AUTH] Refresh token deleted")
     }
 }

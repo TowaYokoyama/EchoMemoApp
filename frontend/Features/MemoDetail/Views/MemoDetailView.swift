@@ -8,17 +8,22 @@ struct MemoDetailView: View {
     @State private var showingDeleteAlert = false
     @Environment(\.dismiss) private var dismiss
     
+    // 表示用のメモ（編集後に更新される）
+    private var displayMemo: Memo {
+        viewModel.updatedMemo ?? memo
+    }
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // タイトル
-                Text(memo.title)
+                Text(displayMemo.title)
                     .font(.title)
                     .fontWeight(.bold)
                 
                 // メタ情報
                 HStack {
-                    Text(memo.createdAt.formatted())
+                    Text(displayMemo.createdAt.formatted())
                         .font(.caption)
                         .foregroundColor(.theme.secondaryText)
                     
@@ -28,24 +33,24 @@ struct MemoDetailView: View {
                 Divider()
                 
                 // 音声プレーヤー
-                if !memo.audioURL.isEmpty, let url = URL(string: memo.audioURL) {
+                if !displayMemo.audioURL.isEmpty, let url = URL(string: displayMemo.audioURL) {
                     AudioPlayerView(audioURL: url)
                         .padding(.vertical)
                 }
                 
                 // コンテンツ
-                Text(memo.content)
+                Text(displayMemo.content)
                     .font(.body)
                     .foregroundColor(.theme.text)
                 
                 // タグ
-                if !memo.tags.isEmpty {
+                if !displayMemo.tags.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("タグ")
                             .font(.headline)
                         
                         FlowLayout(spacing: 8) {
-                            ForEach(memo.tags, id: \.self) { tag in
+                            ForEach(displayMemo.tags, id: \.self) { tag in
                                 TagView(tag: tag)
                             }
                         }
@@ -91,7 +96,9 @@ struct MemoDetailView: View {
             }
         }
         .sheet(isPresented: $showingEdit) {
-            EditMemoView(memo: memo)
+            EditMemoView(memo: displayMemo, onSaved: { updatedMemo in
+                viewModel.updateMemo(updatedMemo)
+            })
         }
         .alert("メモを削除", isPresented: $showingDeleteAlert) {
             Button("キャンセル", role: .cancel) {}

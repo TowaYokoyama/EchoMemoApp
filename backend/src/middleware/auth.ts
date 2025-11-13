@@ -13,12 +13,12 @@ export interface AuthRequest extends Request {
   user?: JWTPayload;
 }
 
-// アクセストークン生成（15分）
+// アクセストークン生成（1時間）
 export const generateAccessToken = (userId: string, email: string): string => {
   return jwt.sign(
     { userId, email },
     JWT_SECRET,
-    { expiresIn: '15m', algorithm: 'HS256' }
+    { expiresIn: '1h', algorithm: 'HS256' }
   );
 };
 

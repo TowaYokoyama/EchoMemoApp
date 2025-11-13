@@ -22,6 +22,7 @@ class AuthService {
         
         // トークンとユーザー情報を保存
         KeychainManager.shared.saveToken(response.accessToken)
+        KeychainManager.shared.saveRefreshToken(response.refreshToken)
         KeychainManager.shared.saveUser(response.user)
         
         return response
@@ -44,6 +45,7 @@ class AuthService {
         
         // トークンとユーザー情報を保存
         KeychainManager.shared.saveToken(response.accessToken)
+        KeychainManager.shared.saveRefreshToken(response.refreshToken)
         KeychainManager.shared.saveUser(response.user)
         
         return response
@@ -51,6 +53,7 @@ class AuthService {
     
     func logout() {
         KeychainManager.shared.deleteToken()
+        KeychainManager.shared.deleteRefreshToken()
         KeychainManager.shared.deleteUser()
     }
     
@@ -83,5 +86,33 @@ class AuthService {
     
     func getCachedUser() -> User? {
         return KeychainManager.shared.getUser()
+    }
+    
+    func refreshAccessToken() async throws -> String {
+        guard let refreshToken = KeychainManager.shared.getRefreshToken() else {
+            throw APIError.unauthorized
+        }
+        
+        struct RefreshRequest: Encodable {
+            let refreshToken: String
+        }
+        
+        struct RefreshResponse: Decodable {
+            let accessToken: String
+        }
+        
+        let request = RefreshRequest(refreshToken: refreshToken)
+        let response: RefreshResponse = try await APIService.shared.request(
+            endpoint: "/auth/refresh",
+            method: .post,
+            body: request,
+            requiresAuth: false
+        )
+        
+        // 新しいアクセストークンを保存
+        KeychainManager.shared.saveToken(response.accessToken)
+        print("✅ [AUTH] Access token refreshed successfully")
+        
+        return response.accessToken
     }
 }
