@@ -162,8 +162,7 @@ struct RelatedMemoCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.theme.secondaryBackground)
-        .cornerRadius(Constants.UI.cornerRadius)
+        .cardStyle()
     }
 }
 

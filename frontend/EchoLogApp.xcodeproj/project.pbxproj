@@ -85,6 +85,8 @@
 		E3AE91B2CC9281702E403115 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
 		E81D5A2E3CD55BC66BC1AEC4 /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
 		F8910C28C497724B5CB5B120 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
+		FEB1CC1D2EC61F56005C04FB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FECA43702EC621D200E240B6 /* EchoLogApp.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = EchoLogApp.xcodeproj; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -206,6 +208,7 @@
 				4AE173B1D25B7A5A7BCF435A /* Models */,
 				1413D58B5208BC53307259DE /* Services */,
 				4523A150906EF86BC8EF6F07 /* Utilities */,
+				FECA43702EC621D200E240B6 /* EchoLogApp.xcodeproj */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -333,6 +336,7 @@
 		E943AA2680527E58B4B8ECB3 /* EchoLogApp */ = {
 			isa = PBXGroup;
 			children = (
+				FEB1CC1D2EC61F56005C04FB /* Assets.xcassets */,
 				560CCD9376AEA0099C250FBA /* EchoLogApp.entitlements */,
 				737F8EDC5F48C25FE13CD6DC /* EchoLogApp.swift */,
 				676E86D708F323F7E5892DE4 /* Info.plist */,

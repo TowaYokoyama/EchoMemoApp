@@ -10,7 +10,7 @@ struct ColorTheme {
     let secondary = Color.gray
     let accent = Color.orange
     let background = Color(uiColor: .systemBackground)
-    let secondaryBackground = Color(uiColor: .secondarySystemBackground)
+    let secondaryBackground = Color(uiColor: .tertiarySystemBackground)
     let text = Color(uiColor: .label)
     let secondaryText = Color(uiColor: .secondaryLabel)
     let success = Color.green

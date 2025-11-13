@@ -69,7 +69,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .navigationTitle("EchoLog")
+            .navigationTitle("エコモコ丼")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
