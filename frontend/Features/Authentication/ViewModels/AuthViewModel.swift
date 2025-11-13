@@ -22,6 +22,11 @@ class AuthViewModel: ObservableObject {
         isAuthenticated = AuthService.shared.isAuthenticated()
         
         if isAuthenticated {
+            // まずキャッシュからユーザー情報を取得
+            currentUser = AuthService.shared.getCachedUser()
+            print("👤 [AUTH] Cached user loaded: \(currentUser?.email ?? "none")")
+            
+            // バックグラウンドでサーバーから最新情報を取得
             Task {
                 await fetchCurrentUser()
             }
@@ -102,9 +107,14 @@ class AuthViewModel: ObservableObject {
     private func fetchCurrentUser() async {
         do {
             currentUser = try await AuthService.shared.getCurrentUser()
+            print("👤 [AUTH] User info updated from server")
         } catch {
+            print("⚠️ [AUTH] Failed to fetch user from server: \(error)")
             // トークンが無効な場合はログアウト
-            logout()
+            if case APIError.unauthorized = error {
+                logout()
+            }
+            // その他のエラーはキャッシュを使い続ける
         }
     }
 }

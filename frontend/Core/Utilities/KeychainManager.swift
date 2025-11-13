@@ -1,4 +1,5 @@
-
+// アプリがログインに成功するとサーバーからトークンが返ってくる。
+//そのトークンをiOS標準の Keychain（暗号化されたセキュアストレージ） に入れる。
 import Foundation
 import Security
 
@@ -7,12 +8,24 @@ class KeychainManager {
     
     private let service = "com.echolog.app"
     private let tokenKey = "authToken"
+    private let userDefaultsTokenKey = "fallbackAuthToken"
+    private let userDefaultsUserKey = "currentUser"
     
     private init() {}
     
     func saveToken(_ token: String) {
-        print("🔑 Saving token to Keychain: \(token.prefix(20))...")
-        let data = token.data(using: .utf8)!
+        print("🔑 [AUTH] Saving token: \(token.prefix(20))...")
+        
+        // 1. UserDefaultsに必ずバックアップ保存（フォールバック用）
+        UserDefaults.standard.set(token, forKey: userDefaultsTokenKey)
+        UserDefaults.standard.synchronize()
+        print("✅ [AUTH] Token saved to UserDefaults")
+        
+        // 2. Keychainへの保存を試みる（失敗してもOK）
+        guard let data = token.data(using: .utf8) else {
+            print("⚠️ [AUTH] Failed to convert token to data, but UserDefaults backup exists")
+            return
+        }
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -29,13 +42,16 @@ class KeychainManager {
         let status = SecItemAdd(query as CFDictionary, nil)
         
         if status == errSecSuccess {
-            print("✅ Token saved successfully")
+            print("✅ [AUTH] Token also saved to Keychain")
         } else {
-            print("❌ Failed to save token to keychain: \(status)")
+            print("⚠️ [AUTH] Keychain save failed (\(status)), using UserDefaults backup")
         }
     }
     
     func getToken() -> String? {
+        print("🔍 [AUTH] Retrieving token...")
+        
+        // 1. まずKeychainから取得を試みる
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -47,18 +63,32 @@ class KeychainManager {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let token = String(data: data, encoding: .utf8) else {
-            print("❌ Failed to retrieve token from keychain: \(status)")
-            return nil
+        if status == errSecSuccess,
+           let data = result as? Data,
+           let token = String(data: data, encoding: .utf8) {
+            print("✅ [AUTH] Token retrieved from Keychain: \(token.prefix(20))...")
+            return token
         }
         
-        print("✅ Token retrieved: \(token.prefix(20))...")
-        return token
+        // 2. Keychainから取得できない場合、UserDefaultsからフォールバック
+        print("⚠️ [AUTH] Keychain failed (\(status)), trying UserDefaults backup...")
+        if let token = UserDefaults.standard.string(forKey: userDefaultsTokenKey) {
+            print("✅ [AUTH] Token retrieved from UserDefaults: \(token.prefix(20))...")
+            return token
+        }
+        
+        print("❌ [AUTH] No token found - user needs to login")
+        return nil
     }
     
     func deleteToken() {
+        print("🗑️ [AUTH] Deleting token...")
+        
+        // UserDefaultsから削除
+        UserDefaults.standard.removeObject(forKey: userDefaultsTokenKey)
+        UserDefaults.standard.synchronize()
+        
+        // Keychainから削除
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -66,5 +96,37 @@ class KeychainManager {
         ]
         
         SecItemDelete(query as CFDictionary)
+        print("✅ [AUTH] Token deleted")
+    }
+    
+    // MARK: - User Management
+    
+    func saveUser(_ user: User) {
+        print("👤 [AUTH] Saving user: \(user.email)")
+        if let encoded = try? JSONEncoder().encode(user) {
+            UserDefaults.standard.set(encoded, forKey: userDefaultsUserKey)
+            UserDefaults.standard.synchronize()
+            print("✅ [AUTH] User saved")
+        } else {
+            print("❌ [AUTH] Failed to encode user")
+        }
+    }
+    
+    func getUser() -> User? {
+        print("👤 [AUTH] Retrieving user...")
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsUserKey),
+              let user = try? JSONDecoder().decode(User.self, from: data) else {
+            print("❌ [AUTH] No user found")
+            return nil
+        }
+        print("✅ [AUTH] User retrieved: \(user.email)")
+        return user
+    }
+    
+    func deleteUser() {
+        print("👤 [AUTH] Deleting user...")
+        UserDefaults.standard.removeObject(forKey: userDefaultsUserKey)
+        UserDefaults.standard.synchronize()
+        print("✅ [AUTH] User deleted")
     }
 }

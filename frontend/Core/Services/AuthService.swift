@@ -1,4 +1,4 @@
-
+//ユーザーの認証（ログイン・新規登録・ログアウト。ログイン状態の確認）をまとめたサービスクラス
 import Foundation
 
 class AuthService {
@@ -20,8 +20,9 @@ class AuthService {
             requiresAuth: false
         )
         
-        // アクセストークンをKeychainに保存
+        // トークンとユーザー情報を保存
         KeychainManager.shared.saveToken(response.accessToken)
+        KeychainManager.shared.saveUser(response.user)
         
         return response
     }
@@ -41,24 +42,46 @@ class AuthService {
             requiresAuth: false
         )
         
-        // アクセストークンをKeychainに保存
+        // トークンとユーザー情報を保存
         KeychainManager.shared.saveToken(response.accessToken)
+        KeychainManager.shared.saveUser(response.user)
         
         return response
     }
     
     func logout() {
         KeychainManager.shared.deleteToken()
+        KeychainManager.shared.deleteUser()
     }
     
     func getCurrentUser() async throws -> User {
-        return try await APIService.shared.request(
+        // まずローカルから取得を試みる
+        if let cachedUser = KeychainManager.shared.getUser() {
+            print("👤 [AUTH] Using cached user: \(cachedUser.email)")
+            return cachedUser
+        }
+        
+        // ローカルになければサーバーから取得
+        print("👤 [AUTH] Fetching user from server...")
+        let user: User = try await APIService.shared.request(
             endpoint: "/auth/me",
             method: .get
         )
+        
+        // 取得したユーザー情報を保存
+        KeychainManager.shared.saveUser(user)
+        
+        return user
     }
     
     func isAuthenticated() -> Bool {
-        return KeychainManager.shared.getToken() != nil
+        let hasToken = KeychainManager.shared.getToken() != nil
+        let hasUser = KeychainManager.shared.getUser() != nil
+        print("🔐 [AUTH] isAuthenticated: hasToken=\(hasToken), hasUser=\(hasUser)")
+        return hasToken
+    }
+    
+    func getCachedUser() -> User? {
+        return KeychainManager.shared.getUser()
     }
 }
