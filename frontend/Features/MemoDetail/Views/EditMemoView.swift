@@ -16,6 +16,15 @@ struct EditMemoView: View {
     var body: some View {
         NavigationView {
             Form {
+                Section("タイトル") {
+                    TextField("タイトル", text: $viewModel.title)
+                }
+                
+                Section("本文") {
+                    TextEditor(text: $viewModel.content)
+                        .frame(minHeight: 150)
+                }
+                
                 Section("タグ") {
                     TextField("タグ（カンマ区切り）", text: $viewModel.tagsString)
                     if !viewModel.tags.isEmpty {
