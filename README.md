@@ -7,17 +7,7 @@
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange)
 ![Node.js](https://img.shields.io/badge/Node.js-20.x-green)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)
-
----
-
-## 📱 UIデモ
-![ホーム画面](./docs/images/home.png)
-![録音画面](./docs/images/recording.png)
-![AIアシスタント](./docs/images/assistant.png)
-![ナレッジグラフ](./docs/images/knowledge.png)
-![アプリロゴ](./docs/images/AppIcon.png)
-
----
+----------------------------------------------
 
 ## 🎯 作品概要
 
@@ -227,7 +217,14 @@ EchoMemoApp/
    - 双方向リンクの管理
    - 削除時のクリーンアップ
 ---
+## 📱 UIデモ
+![ホーム画面](./docs/images/home.png)
+![録音画面](./docs/images/recording.png)
+![AIアシスタント](./docs/images/assistant.png)
+![ナレッジグラフ](./docs/images/knowledge.png)
+![アプリロゴ](./docs/images/AppIcon.png)
 
+---
 ## 👤 開発者
 
 **Towa Yokoyama**
