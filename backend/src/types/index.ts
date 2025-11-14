@@ -23,6 +23,7 @@ export interface MemoResponse {
   tags: string[];
   embedding?: number[];
   created_at: string;
+  related_memo_ids?: string[];
 }
 
 export function documentToResponse(doc: MemoDocument): MemoResponse {
@@ -34,5 +35,6 @@ export function documentToResponse(doc: MemoDocument): MemoResponse {
     tags: doc.tags,
     embedding: doc.embedding,
     created_at: doc.created_at.toISOString(),
+    related_memo_ids: doc.related_memo_ids,
   };
 }

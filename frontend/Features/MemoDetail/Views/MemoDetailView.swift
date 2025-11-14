@@ -79,20 +79,26 @@ struct MemoDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showingEdit = true
-                    } label: {
-                        Label("編集", systemImage: "pencil")
+                HStack(spacing: 16) {
+                    ShareLink(item: viewModel.getShareContent(for: displayMemo)) {
+                        Image(systemName: "square.and.arrow.up")
                     }
+                    
+                    Menu {
+                        Button {
+                            showingEdit = true
+                        } label: {
+                            Label("編集", systemImage: "pencil")
+                        }
 
-                    Button(role: .destructive) {
-                        showingDeleteAlert = true
+                        Button(role: .destructive) {
+                            showingDeleteAlert = true
+                        } label: {
+                            Label("削除", systemImage: "trash")
+                        }
                     } label: {
-                        Label("削除", systemImage: "trash")
+                        Image(systemName: "ellipsis.circle")
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
                 }
             }
         }
@@ -166,51 +172,6 @@ struct RelatedMemoCard: View {
         .cardStyle()
     }
 }
-
-// FlowLayoutヘルパー
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.replacingUnspecifiedDimensions().width, subviews: subviews, spacing: spacing)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.frames[index].minX, y: bounds.minY + result.frames[index].minY), proposal: .unspecified)
-        }
-    }
-
-    struct FlowResult {
-        var frames: [CGRect] = []
-        var size: CGSize = .zero
-
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
-            var currentX: CGFloat = 0
-            var currentY: CGFloat = 0
-            var lineHeight: CGFloat = 0
-
-            for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
-
-                if currentX + size.width > maxWidth && currentX > 0 {
-                    currentX = 0
-                    currentY += lineHeight + spacing
-                    lineHeight = 0
-                }
-
-                frames.append(CGRect(x: currentX, y: currentY, width: size.width, height: size.height))
-                lineHeight = max(lineHeight, size.height)
-                currentX += size.width + spacing
-            }
-
-            self.size = CGSize(width: maxWidth, height: currentY + lineHeight)
-        }
-    }
-}
-
 
 #Preview {
     NavigationView {

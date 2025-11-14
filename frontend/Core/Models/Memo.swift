@@ -9,6 +9,7 @@ struct Memo: Identifiable, Codable {
     let tags: [String]
     let embedding: [Double]?
     let createdAt: Date
+    let relatedMemoIds: [String]?
     var isSynced: Bool = true
     
     // UIで使用する計算プロパティ
@@ -23,6 +24,7 @@ struct Memo: Identifiable, Codable {
         case tags
         case embedding
         case createdAt = "created_at"
+        case relatedMemoIds = "related_memo_ids"
     }
 }
 
@@ -41,6 +43,7 @@ extension Memo {
         tags: ["仕事", "アイデア"],
         embedding: nil,
         createdAt: Date(),
+        relatedMemoIds: ["2", "3"],
         isSynced: true
     )
 }

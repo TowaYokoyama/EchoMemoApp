@@ -14,6 +14,11 @@ class MemoDetailViewModel: ObservableObject {
         updatedMemo = memo
     }
     
+    func getShareContent(for memo: Memo) -> String {
+        let shareContent = ShareService.shared.shareMemo(memo)
+        return shareContent.text ?? ""
+    }
+    
     func loadLinkedMemos(for memo: Memo) async {
         isLoading = true
         error = nil

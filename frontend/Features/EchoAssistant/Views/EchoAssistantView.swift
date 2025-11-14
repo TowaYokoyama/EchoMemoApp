@@ -4,6 +4,7 @@ import SwiftUI
 
 struct EchoAssistantView: View {
     @StateObject private var viewModel = EchoAssistantViewModel()
+    @State private var showingKnowledgeGraph = false
     
     var body: some View {
         NavigationView {
@@ -46,15 +47,26 @@ struct EchoAssistantView: View {
             .navigationTitle("アシスタント")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        Task {
-                            await viewModel.refreshSuggestions()
+                    HStack(spacing: 16) {
+                        Button {
+                            showingKnowledgeGraph = true
+                        } label: {
+                            Image(systemName: "network")
                         }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
+                        
+                        Button {
+                            Task {
+                                await viewModel.refreshSuggestions()
+                            }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .disabled(viewModel.isLoading)
                     }
-                    .disabled(viewModel.isLoading)
                 }
+            }
+            .sheet(isPresented: $showingKnowledgeGraph) {
+                KnowledgeGraphView()
             }
             .task {
                 await viewModel.loadSuggestions()
