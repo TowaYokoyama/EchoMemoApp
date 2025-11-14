@@ -7,12 +7,12 @@ struct MemoDetailView: View {
     @State private var showingEdit = false
     @State private var showingDeleteAlert = false
     @Environment(\.dismiss) private var dismiss
-    
+
     // 表示用のメモ（編集後に更新される）
     private var displayMemo: Memo {
         viewModel.updatedMemo ?? memo
     }
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -20,35 +20,36 @@ struct MemoDetailView: View {
                 Text(displayMemo.title)
                     .font(.title)
                     .fontWeight(.bold)
-                
+                    .foregroundColor(.theme.text)
+
                 // メタ情報
                 HStack {
                     Text(displayMemo.createdAt.formatted())
                         .font(.caption)
                         .foregroundColor(.theme.secondaryText)
-                    
-                    // TODO: 位置情報機能は将来実装予定
+                    Spacer()
                 }
-                
+
                 Divider()
-                
+
                 // 音声プレーヤー
                 if !displayMemo.audioURL.isEmpty, let url = URL(string: displayMemo.audioURL) {
                     AudioPlayerView(audioURL: url)
                         .padding(.vertical)
                 }
-                
+
                 // コンテンツ
                 Text(displayMemo.content)
                     .font(.body)
                     .foregroundColor(.theme.text)
-                
+
                 // タグ
                 if !displayMemo.tags.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("タグ")
                             .font(.headline)
-                        
+                            .foregroundColor(.theme.secondaryText)
+
                         FlowLayout(spacing: 8) {
                             ForEach(displayMemo.tags, id: \.self) { tag in
                                 TagView(tag: tag)
@@ -57,13 +58,13 @@ struct MemoDetailView: View {
                     }
                     .padding(.top)
                 }
-                
+
                 // 関連メモ
                 if !viewModel.linkedMemos.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("関連メモ")
                             .font(.headline)
-                        
+
                         ForEach(viewModel.linkedMemos) { linkedMemo in
                             NavigationLink(destination: MemoDetailView(memo: linkedMemo)) {
                                 RelatedMemoCard(memo: linkedMemo)
@@ -84,7 +85,7 @@ struct MemoDetailView: View {
                     } label: {
                         Label("編集", systemImage: "pencil")
                     }
-                    
+
                     Button(role: .destructive) {
                         showingDeleteAlert = true
                     } label: {
@@ -121,12 +122,12 @@ struct MemoDetailView: View {
                 ZStack {
                     Color.black.opacity(0.4)
                         .ignoresSafeArea()
-                    
+
                     VStack(spacing: 20) {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(1.5)
-                        
+
                         Text("削除中...")
                             .font(.headline)
                             .foregroundColor(.white)
@@ -147,14 +148,14 @@ struct MemoDetailView: View {
 
 struct RelatedMemoCard: View {
     let memo: Memo
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(memo.title)
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .foregroundColor(.theme.text)
-            
+
             Text(memo.content)
                 .font(.caption)
                 .foregroundColor(.theme.secondaryText)
@@ -169,46 +170,47 @@ struct RelatedMemoCard: View {
 // FlowLayoutヘルパー
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
-    
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let result = FlowResult(in: proposal.replacingUnspecifiedDimensions().width, subviews: subviews, spacing: spacing)
         return result.size
     }
-    
+
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
         for (index, subview) in subviews.enumerated() {
             subview.place(at: CGPoint(x: bounds.minX + result.frames[index].minX, y: bounds.minY + result.frames[index].minY), proposal: .unspecified)
         }
     }
-    
+
     struct FlowResult {
         var frames: [CGRect] = []
         var size: CGSize = .zero
-        
+
         init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
             var currentX: CGFloat = 0
             var currentY: CGFloat = 0
             var lineHeight: CGFloat = 0
-            
+
             for subview in subviews {
                 let size = subview.sizeThatFits(.unspecified)
-                
+
                 if currentX + size.width > maxWidth && currentX > 0 {
                     currentX = 0
                     currentY += lineHeight + spacing
                     lineHeight = 0
                 }
-                
+
                 frames.append(CGRect(x: currentX, y: currentY, width: size.width, height: size.height))
                 lineHeight = max(lineHeight, size.height)
                 currentX += size.width + spacing
             }
-            
+
             self.size = CGSize(width: maxWidth, height: currentY + lineHeight)
         }
     }
 }
+
 
 #Preview {
     NavigationView {

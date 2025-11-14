@@ -353,6 +353,11 @@
 			path = EchoAssistant;
 			sourceTree = "<group>";
 		};
+		FE1A31E52EC62274004A519B /* Products */ = {
+			isa = PBXGroup;
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -398,6 +403,12 @@
 			mainGroup = B1EFCF9B6366F5EEBE007580;
 			minimizedProjectReferenceProxies = 1;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = FE1A31E52EC62274004A519B /* Products */;
+					ProjectRef = FECA43702EC621D200E240B6 /* EchoLogApp.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				EE5CDA41DD1A5E339A390567 /* EchoLogApp */,

@@ -1,5 +1,3 @@
-
-
 import SwiftUI
 
 struct LoginView: View {
@@ -85,11 +83,17 @@ struct LoginView: View {
 }
 
 struct RoundedTextFieldStyle: TextFieldStyle {
+    @Environment(\.colorScheme) var colorScheme
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding()
             .background(Color.theme.secondaryBackground)
             .cornerRadius(Constants.UI.cornerRadius)
+            .overlay(
+                RoundedRectangle(cornerRadius: Constants.UI.cornerRadius)
+                    .stroke(colorScheme == .light ? Color.theme.secondary.opacity(0.4) : Color.clear, lineWidth: colorScheme == .light ? 1 : 0)
+            )
+            .shadow(color: colorScheme == .light ? Color.theme.secondary.opacity(0.15) : Color.clear, radius: colorScheme == .light ? 3 : 0, x: 0, y: 2)
     }
 }
 

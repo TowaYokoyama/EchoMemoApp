@@ -154,8 +154,12 @@ struct SearchBar: View {
             }
         }
         .padding(10)
-        .background(Color.theme.secondaryBackground)
+        .background(Color(.systemGray6))
         .cornerRadius(Constants.UI.cornerRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: Constants.UI.cornerRadius)
+                .stroke(Color.theme.secondary, lineWidth: 1)
+        )
     }
 }
 

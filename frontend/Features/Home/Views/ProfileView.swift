@@ -18,9 +18,6 @@ struct ProfileView: View {
                             Text(user.email)
                                 .font(.title3)
                                 .fontWeight(.semibold)
-                            Text("ユーザーID: \(user.id)")
-                                .font(.caption)
-                                .foregroundColor(.theme.secondaryText)
                         }
                         .padding(.vertical, 8)
                     }

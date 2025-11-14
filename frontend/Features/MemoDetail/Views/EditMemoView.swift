@@ -16,20 +16,10 @@ struct EditMemoView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("タイトル") {
-                    TextField("タイトル", text: $viewModel.title)
-                }
-                
-                Section("内容") {
-                    TextEditor(text: $viewModel.content)
-                        .frame(minHeight: 200)
-                }
-                
                 Section("タグ") {
                     TextField("タグ（カンマ区切り）", text: $viewModel.tagsString)
-                    
                     if !viewModel.tags.isEmpty {
-                        FlowLayout(spacing: 8) {
+                        VStack(alignment: .leading, spacing: 8) {
                             ForEach(viewModel.tags, id: \.self) { tag in
                                 TagView(tag: tag)
                             }
