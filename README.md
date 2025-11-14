@@ -11,15 +11,11 @@
 ---
 
 ## 📱 UIデモ
-
-<!-- スクリーンショットをここに追加 -->
-<!-- 
 ![ホーム画面](./docs/images/home.png)
 ![録音画面](./docs/images/recording.png)
 ![AIアシスタント](./docs/images/assistant.png)
 ![ナレッジグラフ](./docs/images/knowledge.png)
 ![アプリロゴ](./docs/images/AppIcon.png)
--->
 
 ---
 
