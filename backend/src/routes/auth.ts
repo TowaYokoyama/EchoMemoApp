@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, refreshAccessToken, getCurrentUser } from '../controllers/authController';
+import { register, login, refreshAccessToken, getCurrentUser, oauthLogin } from '../controllers/authController';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -9,6 +9,9 @@ router.post('/register', register);
 
 // POST /api/auth/login - ログイン
 router.post('/login', login);
+
+// POST /api/auth/oauth - OAuth ログイン/登録
+router.post('/oauth', oauthLogin);
 
 // POST /api/auth/refresh - トークンリフレッシュ
 router.post('/refresh', refreshAccessToken);

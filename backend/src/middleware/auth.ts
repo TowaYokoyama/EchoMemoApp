@@ -13,21 +13,21 @@ export interface AuthRequest extends Request {
   user?: JWTPayload;
 }
 
-// アクセストークン生成（1時間）
+// アクセストークン生成（24時間）
 export const generateAccessToken = (userId: string, email: string): string => {
   return jwt.sign(
     { userId, email },
     JWT_SECRET,
-    { expiresIn: '1h', algorithm: 'HS256' }
+    { expiresIn: '24h', algorithm: 'HS256' }
   );
 };
 
-// リフレッシュトークン生成（7日）
+// リフレッシュトークン生成（90日）
 export const generateRefreshToken = (userId: string): string => {
   return jwt.sign(
     { userId, type: 'refresh' },
     REFRESH_SECRET,
-    { expiresIn: '7d', algorithm: 'HS256' }
+    { expiresIn: '90d', algorithm: 'HS256' }
   );
 };
 
@@ -51,8 +51,8 @@ export const authenticate = async (
       const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
       req.user = decoded;
       next();
-    } catch (error: any) {
-      if (error.name === 'TokenExpiredError') {
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'TokenExpiredError') {
         res.status(401).json({ error: 'Token expired' });
         return;
       }
@@ -65,10 +65,15 @@ export const authenticate = async (
   }
 };
 
+interface RefreshTokenPayload {
+  userId: string;
+  type: string;
+}
+
 // リフレッシュトークン検証
 export const verifyRefreshToken = (token: string): { userId: string } | null => {
   try {
-    const decoded = jwt.verify(token, REFRESH_SECRET) as any;
+    const decoded = jwt.verify(token, REFRESH_SECRET) as RefreshTokenPayload;
     if (decoded.type !== 'refresh') {
       return null;
     }

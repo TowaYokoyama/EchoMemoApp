@@ -3,6 +3,8 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @State private var showingRegister = false
+    @State private var email = ""
+    @State private var password = ""
     
     var body: some View {
         NavigationView {
@@ -23,13 +25,13 @@ struct LoginView: View {
                 
                 // 入力フォーム
                 VStack(spacing: 16) {
-                    TextField("メールアドレス", text: $authViewModel.email)
+                    TextField("メールアドレス", text: $email)
                         .textFieldStyle(RoundedTextFieldStyle())
                         .textContentType(.emailAddress)
                         .autocapitalization(.none)
                         .keyboardType(.emailAddress)
                     
-                    SecureField("パスワード", text: $authViewModel.password)
+                    SecureField("パスワード", text: $password)
                         .textFieldStyle(RoundedTextFieldStyle())
                         .textContentType(.password)
                 }
@@ -46,7 +48,7 @@ struct LoginView: View {
                 // ログインボタン
                 Button(action: {
                     Task {
-                        await authViewModel.login()
+                        await authViewModel.login(email: email, password: password)
                     }
                 }) {
                     if authViewModel.isLoading {

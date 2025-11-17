@@ -4,6 +4,9 @@ import SwiftUI
 struct RegisterView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var email = ""
+    @State private var password = ""
     
     var body: some View {
         NavigationView {
@@ -18,17 +21,17 @@ struct RegisterView: View {
                 
                 // 入力フォーム
                 VStack(spacing: 16) {
-                    TextField("名前（任意）", text: $authViewModel.name)
+                    TextField("名前（任意）", text: $name)
                         .textFieldStyle(RoundedTextFieldStyle())
                         .textContentType(.name)
                     
-                    TextField("メールアドレス", text: $authViewModel.email)
+                    TextField("メールアドレス", text: $email)
                         .textFieldStyle(RoundedTextFieldStyle())
                         .textContentType(.emailAddress)
                         .autocapitalization(.none)
                         .keyboardType(.emailAddress)
                     
-                    SecureField("パスワード", text: $authViewModel.password)
+                    SecureField("パスワード", text: $password)
                         .textFieldStyle(RoundedTextFieldStyle())
                         .textContentType(.newPassword)
                     
@@ -50,7 +53,7 @@ struct RegisterView: View {
                 // 登録ボタン
                 Button(action: {
                     Task {
-                        await authViewModel.register()
+                        await authViewModel.register(email: email, password: password, name: name)
                         if authViewModel.isAuthenticated {
                             dismiss()
                         }

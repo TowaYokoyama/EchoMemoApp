@@ -39,14 +39,40 @@ export async function connectToDatabase(): Promise<Db> {
  */
 async function createIndexes(database: Db): Promise<void> {
   try {
-    const memosCollection = database.collection('memos');
+    // Users Collection のインデックス
+    const usersCollection = database.collection('users');
+    const userIndexes = await usersCollection.indexes();
+    const userIndexNames = userIndexes.map((idx) => idx.name);
 
-    // 既存のインデックスをチェック
-    const existingIndexes = await memosCollection.indexes();
-    const indexNames = existingIndexes.map((idx) => idx.name);
+    // email にユニークインデックス（重複防止 + 高速検索）
+    if (!userIndexNames.includes('email_1')) {
+      await usersCollection.createIndex(
+        { email: 1 },
+        { unique: true, name: 'email_1' }
+      );
+      console.log('✅ Created unique index: email_1');
+    }
+
+    // OAuth プロバイダー + OAuth ID の複合ユニークインデックス
+    if (!userIndexNames.includes('oauth_provider_1_oauth_id_1')) {
+      await usersCollection.createIndex(
+        { oauth_provider: 1, oauth_id: 1 },
+        { 
+          unique: true, 
+          sparse: true, // OAuth を使わないユーザーは除外
+          name: 'oauth_provider_1_oauth_id_1' 
+        }
+      );
+      console.log('✅ Created unique index: oauth_provider_1_oauth_id_1');
+    }
+
+    // Memos Collection のインデックス
+    const memosCollection = database.collection('memos');
+    const memoIndexes = await memosCollection.indexes();
+    const memoIndexNames = memoIndexes.map((idx) => idx.name);
 
     // user_id + created_at の複合インデックス（メモ一覧取得用）
-    if (!indexNames.includes('user_id_1_created_at_-1')) {
+    if (!memoIndexNames.includes('user_id_1_created_at_-1')) {
       await memosCollection.createIndex(
         { user_id: 1, created_at: -1 },
         { name: 'user_id_1_created_at_-1' }
@@ -55,7 +81,7 @@ async function createIndexes(database: Db): Promise<void> {
     }
 
     // related_memo_ids インデックス（関連メモ検索用）
-    if (!indexNames.includes('related_memo_ids_1')) {
+    if (!memoIndexNames.includes('related_memo_ids_1')) {
       await memosCollection.createIndex(
         { related_memo_ids: 1 },
         { name: 'related_memo_ids_1', sparse: true }
@@ -64,7 +90,7 @@ async function createIndexes(database: Db): Promise<void> {
     }
 
     // deleted_at インデックス（削除済みメモのフィルタリング用）
-    if (!indexNames.includes('deleted_at_1')) {
+    if (!memoIndexNames.includes('deleted_at_1')) {
       await memosCollection.createIndex(
         { deleted_at: 1 },
         { name: 'deleted_at_1', sparse: true }

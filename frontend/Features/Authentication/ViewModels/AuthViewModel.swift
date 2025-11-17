@@ -4,9 +4,6 @@ import Combine
 
 @MainActor
 class AuthViewModel: ObservableObject {
-    @Published var email = ""
-    @Published var password = ""
-    @Published var name = ""
     @Published var isLoading = false
     @Published var error: Error?
     @Published var isAuthenticated = false
@@ -33,7 +30,7 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    func login() async {
+    func login(email: String, password: String) async {
         guard !email.isEmpty, !password.isEmpty else {
             error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "メールアドレスとパスワードを入力してください"])
             return
@@ -49,8 +46,6 @@ class AuthViewModel: ObservableObject {
             currentUser = response.user
             error = nil // エラーをクリア
             isAuthenticated = true
-            // 入力フィールドをクリア
-            password = ""
         } catch let apiError as APIError {
             print("❌ Login failed: \(apiError)")
             self.error = apiError
@@ -62,7 +57,7 @@ class AuthViewModel: ObservableObject {
         isLoading = false
     }
     
-    func register() async {
+    func register(email: String, password: String, name: String) async {
         guard !email.isEmpty, !password.isEmpty else {
             error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "メールアドレスとパスワードを入力してください"])
             return
@@ -85,9 +80,6 @@ class AuthViewModel: ObservableObject {
             currentUser = response.user
             error = nil // エラーをクリア
             isAuthenticated = true
-            // 入力フィールドをクリア
-            password = ""
-            name = ""
         } catch {
             self.error = error
         }
@@ -99,9 +91,6 @@ class AuthViewModel: ObservableObject {
         AuthService.shared.logout()
         isAuthenticated = false
         currentUser = nil
-        email = ""
-        password = ""
-        name = ""
     }
     
     private func fetchCurrentUser() async {

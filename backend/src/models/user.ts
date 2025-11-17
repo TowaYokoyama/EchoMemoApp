@@ -1,13 +1,30 @@
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
+import { ObjectId } from 'mongodb';
+
+// OAuth プロバイダーの型定義
+export const OAuthProviders = ['google', 'apple', 'github', 'twitter'] as const;
+export type OAuthProvider = typeof OAuthProviders[number];
 
 // Zodスキーマ定義
 export const CreateUserSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
-  oauth_provider: z.enum(['google', 'apple']).optional(),
+  password: z.string().min(8).optional(), // OAuth時はパスワード不要
+  oauth_provider: z.enum(['google', 'apple', 'github', 'twitter']).optional(),
   oauth_id: z.string().optional(),
-});
+}).refine(
+  (data) => {
+    // OAuth使用時はパスワード不要、通常登録時はパスワード必須
+    if (data.oauth_provider && data.oauth_id) {
+      return true;
+    }
+    return !!data.password;
+  },
+  {
+    message: 'Password is required for non-OAuth registration',
+    path: ['password'],
+  }
+);
 
 export const LoginSchema = z.object({
   email: z.string().email(),
@@ -17,7 +34,7 @@ export const LoginSchema = z.object({
 export const UserResponseSchema = z.object({
   id: z.string(),
   email: z.string().email(),
-  oauth_provider: z.enum(['google', 'apple']).optional(),
+  oauth_provider: z.enum(['google', 'apple', 'github', 'twitter']).optional(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -28,10 +45,10 @@ export type LoginInput = z.infer<typeof LoginSchema>;
 export type UserResponse = z.infer<typeof UserResponseSchema>;
 
 export interface UserDocument {
-  _id?: any;
+  _id?: ObjectId;
   email: string;
-  password: string;
-  oauth_provider?: 'google' | 'apple';
+  password?: string; // OAuth時は不要
+  oauth_provider?: OAuthProvider;
   oauth_id?: string;
   settings: {
     biometric_enabled: boolean;
