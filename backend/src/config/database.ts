@@ -54,7 +54,34 @@ async function createIndexes(database: Db): Promise<void> {
     }
 
     // OAuth プロバイダー + OAuth ID の複合ユニークインデックス
-    if (!userIndexNames.includes('oauth_provider_1_oauth_id_1')) {
+    // 既存のインデックスがsparseでない場合は削除して再作成
+    if (userIndexNames.includes('oauth_provider_1_oauth_id_1')) {
+      try {
+        // 既存のインデックス情報を取得
+        const existingIndex = userIndexes.find(idx => idx.name === 'oauth_provider_1_oauth_id_1');
+        
+        // sparseオプションがない場合は削除して再作成
+        if (existingIndex && !existingIndex.sparse) {
+          console.log('⚠️  Dropping old oauth index (not sparse)...');
+          await usersCollection.dropIndex('oauth_provider_1_oauth_id_1');
+          console.log('✅ Dropped old index: oauth_provider_1_oauth_id_1');
+          
+          // 再作成
+          await usersCollection.createIndex(
+            { oauth_provider: 1, oauth_id: 1 },
+            { 
+              unique: true, 
+              sparse: true, // OAuth を使わないユーザーは除外
+              name: 'oauth_provider_1_oauth_id_1' 
+            }
+          );
+          console.log('✅ Created unique sparse index: oauth_provider_1_oauth_id_1');
+        }
+      } catch (error) {
+        console.error('⚠️  Failed to recreate oauth index:', error);
+      }
+    } else {
+      // インデックスが存在しない場合は新規作成
       await usersCollection.createIndex(
         { oauth_provider: 1, oauth_id: 1 },
         { 
@@ -63,7 +90,7 @@ async function createIndexes(database: Db): Promise<void> {
           name: 'oauth_provider_1_oauth_id_1' 
         }
       );
-      console.log('✅ Created unique index: oauth_provider_1_oauth_id_1');
+      console.log('✅ Created unique sparse index: oauth_provider_1_oauth_id_1');
     }
 
     // Memos Collection のインデックス

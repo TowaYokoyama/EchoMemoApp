@@ -9,32 +9,32 @@ import { connectToDatabase, closeDatabaseConnection } from './config/database';
 import memoRoutes from './routes/memos';
 import authRoutes from './routes/auth';
 import gptRoutes from './routes/gpt';
-import { errorHandler } from './utils/errorHandler';
+import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+
 app.use(cors({
-  origin: '*', // 開発環境では全てのオリジンを許可（実機テスト用）
+  origin: '*',
   credentials: true
 })); // Enable CORS for all origins (development)
 app.use(compression()); // Gzip compression for responses
 app.use(express.json({ limit: '10mb' })); // Parse JSON request bodies with size limit
 
-// Request logging middleware
+
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${req.method} ${req.path}`);
   next();
 });
 
-// Routes
+
 app.use('/api/auth', authRoutes);
 app.use('/api/memos', memoRoutes);
 app.use('/api', gptRoutes);
 
-// Health check endpoint
+
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
@@ -42,7 +42,6 @@ app.get('/health', (req, res) => {
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Start server
 async function startServer() {
   try {
     // Validate required environment variables
@@ -51,7 +50,7 @@ async function startServer() {
       process.exit(1);
     }
 
-    // Connect to MongoDB
+   
     await connectToDatabase();
 
     // Start listening (0.0.0.0で全てのネットワークインターフェースでリッスン)

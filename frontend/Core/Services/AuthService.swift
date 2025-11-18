@@ -115,4 +115,33 @@ class AuthService {
         
         return response.accessToken
     }
+    
+    // OAuth ログイン
+    func oauthLogin(provider: String, oauthId: String, email: String) async throws -> LoginResponse {
+        struct OAuthRequest: Encodable {
+            let email: String
+            let oauth_provider: String
+            let oauth_id: String
+        }
+        
+        let request = OAuthRequest(
+            email: email,
+            oauth_provider: provider,
+            oauth_id: oauthId
+        )
+        
+        let response: LoginResponse = try await APIService.shared.request(
+            endpoint: "/auth/oauth",
+            method: .post,
+            body: request,
+            requiresAuth: false
+        )
+        
+        // トークンとユーザー情報を保存
+        KeychainManager.shared.saveToken(response.accessToken)
+        KeychainManager.shared.saveRefreshToken(response.refreshToken)
+        KeychainManager.shared.saveUser(response.user)
+        
+        return response
+    }
 }
