@@ -1,12 +1,12 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { ObjectId } from 'mongodb';
-import { getDatabase } from '../config/database';
 import { CreateMemoSchema, SearchMemoSchema } from '../models/memo';
-import { MemoDocument, documentToResponse } from '../types';
+import { documentToResponse } from '../types';
 import { AppError } from '../utils/errorHandler';
 import { cosineSimilarity } from '../utils/similarity';
 import { AuthRequest } from '../middleware/auth';
 import { calculateMemoLinks, cleanupMemoLinks } from '../services/linkCalculator';
+import * as memoService from '../services/memoService';
 
 export async function createMemo(
   req: AuthRequest,
@@ -14,42 +14,25 @@ export async function createMemo(
   next: NextFunction
 ) {
   try {
-    // Validate request body
     const validatedData = CreateMemoSchema.parse(req.body);
-
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
-    // 認証されたユーザーIDを取得
     const userId = new ObjectId(req.user!.userId);
 
-    // Create memo document
-    const memoDocument: MemoDocument = {
+    // Service層でDB操作を実行
+    const insertedMemo = await memoService.createMemoInDB({
       user_id: userId,
       audio_url: validatedData.audio_url,
       transcription: validatedData.transcription,
       summary: validatedData.summary,
       tags: validatedData.tags,
       embedding: validatedData.embedding,
-      created_at: new Date(),
-    };
+    });
 
-    // Insert into MongoDB
-    const result = await collection.insertOne(memoDocument);
-
-    // Fetch the inserted document
-    const insertedMemo = await collection.findOne({ _id: result.insertedId });
-
-    if (!insertedMemo) {
-      throw new AppError(500, 'Failed to retrieve created memo');
-    }
-
-    // Return response immediately
+    // レスポンスを即座に返す
     res.status(201).json(documentToResponse(insertedMemo));
 
-    // Calculate links asynchronously (don't await)
-    if (validatedData.embedding) {
-      calculateMemoLinks(result.insertedId.toString(), validatedData.embedding)
+    // リンク計算を非同期で実行（awaitしない）
+    if (validatedData.embedding && insertedMemo._id) {
+      calculateMemoLinks(insertedMemo._id.toString(), validatedData.embedding)
         .catch((error) => console.error('Link calculation failed:', error));
     }
   } catch (error: any) {
@@ -69,7 +52,7 @@ export async function getRecentMemos(
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = parseInt(req.query.skip as string) || 0;
 
-    // Validate limit and skip
+    // バリデーション
     if (limit < 1 || limit > 100) {
       throw new AppError(400, 'Limit must be between 1 and 100');
     }
@@ -77,28 +60,13 @@ export async function getRecentMemos(
       throw new AppError(400, 'Skip must be non-negative');
     }
 
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
-    // 認証されたユーザーIDでフィルタ
     const userId = new ObjectId(req.user!.userId);
 
-    const memos = await collection
-      .find({ 
-        user_id: userId,
-        deleted_at: { $exists: false } 
-      })
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(limit)
-      .toArray();
-
-
-    const total = await collection.countDocuments({ 
-      user_id: userId,
-      deleted_at: { $exists: false } 
+    // Service層でDB操作を実行
+    const { memos, total } = await memoService.getRecentMemosFromDB(userId, {
+      skip,
+      limit,
     });
-
 
     const response = memos.map(documentToResponse);
 
@@ -124,22 +92,12 @@ export async function getMemoById(
   try {
     const { id } = req.params;
 
-    // Validate ObjectId format
     if (!ObjectId.isValid(id)) {
       throw new AppError(400, 'Invalid memo ID format');
     }
 
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
     const userId = new ObjectId(req.user!.userId);
-
-    
-    const memo = await collection.findOne({ 
-      _id: new ObjectId(id),
-      user_id: userId,
-      deleted_at: { $exists: false }
-    });
+    const memo = await memoService.getMemoByIdFromDB(new ObjectId(id), userId);
 
     if (!memo) {
       throw new AppError(404, 'Memo not found');
@@ -157,37 +115,29 @@ export async function searchMemosByEmbedding(
   next: NextFunction
 ) {
   try {
-
     const validatedData = SearchMemoSchema.parse(req.body);
     const queryEmbedding = validatedData.embedding;
     const limit = validatedData.limit || 5;
-
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
-    // 認証されたユーザーIDでフィルタ
     const userId = new ObjectId(req.user!.userId);
 
-    const memos = await collection
-      .find({ 
-        user_id: userId,
-        embedding: { $exists: true },
-        deleted_at: { $exists: false }
-      } as any)
-      .toArray();
+    // Service層でDB操作を実行
+    const memos = await memoService.searchMemosByEmbeddingInDB(
+      userId,
+      queryEmbedding,
+      limit
+    );
 
     if (memos.length === 0) {
       return res.status(200).json([]);
     }
 
-    const memosWithSimilarity = memos.map((memo) => {
-      const similarity = cosineSimilarity(queryEmbedding, memo.embedding!);
-      return {
-        memo,
-        similarity,
-      };
-    });
+    // コサイン類似度を計算
+    const memosWithSimilarity = memos.map((memo) => ({
+      memo,
+      similarity: cosineSimilarity(queryEmbedding, memo.embedding!),
+    }));
 
+    // フィルタリングとソート
     const filteredMemos = memosWithSimilarity
       .filter((item) => item.similarity > 0.7)
       .sort((a, b) => b.similarity - a.similarity)
@@ -199,8 +149,8 @@ export async function searchMemosByEmbedding(
     }));
 
     res.status(200).json(response);
-  } catch (error: any) {
-    if (error.name === 'ZodError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'ZodError') {
       return next(new AppError(400, 'Invalid request data'));
     }
     next(error);
@@ -215,27 +165,20 @@ export async function deleteMemo(
   try {
     const { id } = req.params;
 
-
     if (!ObjectId.isValid(id)) {
       throw new AppError(400, 'Invalid memo ID format');
     }
 
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
     const userId = new ObjectId(req.user!.userId);
 
-    
-    const result = await collection.deleteOne({ 
-      _id: new ObjectId(id),
-      user_id: userId
-    });
+    // 論理削除（Soft Delete）に変更
+    const deleted = await memoService.softDeleteMemoInDB(new ObjectId(id), userId);
 
-    if (result.deletedCount === 0) {
+    if (!deleted) {
       throw new AppError(404, 'Memo not found');
     }
 
-  
+    // リンククリーンアップを非同期で実行
     cleanupMemoLinks(id).catch((error) =>
       console.error('Link cleanup failed:', error)
     );
@@ -246,7 +189,6 @@ export async function deleteMemo(
   }
 }
 
-// 関連メモを取得
 export async function getRelatedMemos(
   req: AuthRequest,
   res: Response,
@@ -254,24 +196,14 @@ export async function getRelatedMemos(
 ) {
   try {
     const { id } = req.params;
-
+    const limit = parseInt(req.query.limit as string) || 10;
 
     if (!ObjectId.isValid(id)) {
       throw new AppError(400, 'Invalid memo ID format');
     }
 
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
-    // 認証されたユーザーIDでフィルタ
     const userId = new ObjectId(req.user!.userId);
-
-    
-    const memo = await collection.findOne({
-      _id: new ObjectId(id),
-      user_id: userId,
-      deleted_at: { $exists: false },
-    });
+    const memo = await memoService.getMemoByIdFromDB(new ObjectId(id), userId);
 
     if (!memo) {
       throw new AppError(404, 'Memo not found');
@@ -281,13 +213,12 @@ export async function getRelatedMemos(
       return res.status(200).json([]);
     }
 
-    const relatedMemos = await collection
-      .find({
-        _id: { $in: memo.related_memo_ids.map((id: string) => new ObjectId(id)) },
-        user_id: userId,
-        deleted_at: { $exists: false },
-      })
-      .toArray();
+    // 制限付きで関連メモを取得
+    const relatedMemos = await memoService.getRelatedMemosFromDB(
+      userId,
+      memo.related_memo_ids,
+      limit
+    );
 
     const response = relatedMemos.map(documentToResponse);
     res.status(200).json(response);
@@ -296,7 +227,6 @@ export async function getRelatedMemos(
   }
 }
 
-// メモ更新
 export async function updateMemo(
   req: AuthRequest,
   res: Response,
@@ -310,50 +240,28 @@ export async function updateMemo(
       throw new AppError(400, 'Invalid memo ID format');
     }
 
-    const db = getDatabase();
-    const collection = db.collection<MemoDocument>('memos');
-
     const userId = new ObjectId(req.user!.userId);
 
-    // 更新可能なフィールドのみ抽出
-    const updateFields: Partial<MemoDocument> = {};
-    
-    // transcription または content を受け入れる（フロントエンドとの互換性）
-    if (req.body.transcription !== undefined) {
-      updateFields.transcription = req.body.transcription;
-    } else if (req.body.content !== undefined) {
-      updateFields.transcription = req.body.content;
-    }
-    
-    // summary または title を受け入れる（フロントエンドとの互換性）
-    if (req.body.summary !== undefined) {
-      updateFields.summary = req.body.summary;
-    } else if (req.body.title !== undefined) {
-      updateFields.summary = req.body.title;
-    }
-    
-    if (req.body.tags !== undefined) {
-      updateFields.tags = req.body.tags;
-    }
+    // 更新データを構築（フロントエンドとの互換性を考慮）
+    const updateData = {
+      ...(req.body.transcription !== undefined && { transcription: req.body.transcription }),
+      ...(req.body.content !== undefined && { transcription: req.body.content }),
+      ...(req.body.summary !== undefined && { summary: req.body.summary }),
+      ...(req.body.title !== undefined && { summary: req.body.title }),
+      ...(req.body.tags !== undefined && { tags: req.body.tags }),
+    };
 
-    // 更新するフィールドがない場合はエラー
-    if (Object.keys(updateFields).length === 0) {
+    if (Object.keys(updateData).length === 0) {
       throw new AppError(400, 'No fields to update');
     }
 
-    // updated_atを自動設定
-    updateFields.updated_at = new Date();
+    console.log('🔄 Updating memo with fields:', updateData);
 
-    console.log('🔄 Updating memo with fields:', updateFields);
-
-    const result = await collection.findOneAndUpdate(
-      {
-        _id: new ObjectId(id),
-        user_id: userId,
-        deleted_at: { $exists: false },
-      },
-      { $set: updateFields },
-      { returnDocument: 'after' }
+    // Service層でDB操作を実行
+    const result = await memoService.updateMemoInDB(
+      new ObjectId(id),
+      userId,
+      updateData
     );
 
     if (!result) {
@@ -361,11 +269,11 @@ export async function updateMemo(
       throw new AppError(404, 'Memo not found');
     }
 
-    console.log('✅ Memo updated successfully:', result._id.toString());
+    console.log('✅ Memo updated successfully:', result._id?.toString());
     res.status(200).json(documentToResponse(result));
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Update memo error:', error);
-    if (error.name === 'ZodError') {
+    if (error instanceof Error && error.name === 'ZodError') {
       return next(new AppError(400, 'Invalid request data'));
     }
     next(error);
